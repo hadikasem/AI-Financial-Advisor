@@ -1,0 +1,96 @@
+{
+  "user_id": "user_6a365028",
+  "session_id": "session_d8e191ae",
+  "timestamp": {
+    "created": "2025-09-24T22:25:03.160341+00:00",
+    "last_updated": "2025-09-24T22:30:03.455947+00:00",
+    "assessment_completed": "2025-09-24T22:30:03.455979+00:00"
+  },
+  "assessment_data": {
+    "risk_profile": {
+      "score_percentage": 53.39,
+      "label": "Moderately Conservative",
+      "description": "Comfortable with some volatility; leans toward income and balanced strategies."
+    },
+    "answers": {
+      "age": "28",
+      "horizon": "7",
+      "emergency_fund_months": "0",
+      "dependents": "2",
+      "income_stability": "choice_4",
+      "experience": "choice_1",
+      "loss_tolerance": "choice_2",
+      "savings_rate": "6.0",
+      "debt_load": "choice_4",
+      "liquidity_need": "choice_4",
+      "reaction_scenario": "choice_2",
+      "investment_objective": "choice_3"
+    },
+    "individual_scores": {
+      "age": 85.0,
+      "horizon": 65.0,
+      "emergency_fund_months": 30.0,
+      "dependents": 70.0,
+      "income_stability": 85.0,
+      "experience": 25.0,
+      "loss_tolerance": 40.0,
+      "savings_rate": 50.0,
+      "debt_load": 30.0,
+      "liquidity_need": 50.0,
+      "reaction_scenario": 45.0,
+      "investment_objective": 70.0
+    },
+    "question_weights": {
+      "age": 1.0,
+      "horizon": 1.2,
+      "emergency_fund_months": 0.8,
+      "dependents": 0.6,
+      "income_stability": 0.8,
+      "experience": 0.9,
+      "loss_tolerance": 1.2,
+      "savings_rate": 0.7,
+      "debt_load": 0.8,
+      "liquidity_need": 1.0,
+      "reaction_scenario": 1.3,
+      "investment_objective": 0.9
+    }
+  },
+  "goals": {
+    "selected_goals": [
+      {
+        "id": "goal_1",
+        "text": "Accumulate $30,000 for a first home down payment by Aug 2026",
+        "source": "suggestion",
+        "added_timestamp": "2025-09-24T22:30:03.457310+00:00",
+        "status": "active",
+        "suggestion_number": 3
+      }
+    ],
+    "deleted_goals": [
+      {
+        "id": "goal_deleted_1",
+        "text": "Grow a $20,000 tax‑advantaged retirement account by 2032",
+        "deleted_timestamp": "2025-09-24T22:29:56.573218+00:00",
+        "status": "deleted"
+      }
+    ],
+    "total_goals_considered": 10,
+    "suggestion_pages_viewed": 1
+  },
+  "session_metadata": {
+    "questions_asked": 12,
+    "questions_skipped": 0,
+    "clarifications_requested": 0,
+    "goals_explained": 0,
+    "total_session_duration_minutes": 5,
+    "llm_model_used": "gpt-oss:20b",
+    "version": "1.0.0"
+  },
+  "progress_tracking": {
+    "assessment_stage": "completed",
+    "goal_setting_stage": "completed",
+    "next_review_date": "2025-10-24T22:30:03.457620+00:00",
+    "milestones": [],
+    "notes": []
+  }
+}

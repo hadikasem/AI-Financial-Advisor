@@ -1,0 +1,11 @@
+{
+  "user_id": "user_060868bb",
+  "risk_label": "Balanced",
+  "goal": {
+    "id": "goal_1",
+    "name": "Family Vacation Fund",
+    "target_amount": 20000,
+    "target_date": "2026-12-31",
+    "start_amount": 2500
+  }
+}

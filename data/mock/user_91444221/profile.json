@@ -1,0 +1,12 @@
+{
+  "user_id": "user_91444221",
+  "risk_label": "Balanced",
+  "goal": {
+    "id": "goal_1",
+    "name": "Chalet with Pool Fund",
+    "target_amount": 60000,
+    "target_date": "2030-12-31",
+    "start_amount": 0,
+    "start_date": "2025-01-01"
+  }
+}

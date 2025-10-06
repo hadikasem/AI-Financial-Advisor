@@ -1,0 +1,11 @@
+{
+  "user_id": "u123",
+  "risk_label": "Balanced",
+  "goal": {
+    "id": "g1",
+    "name": "Emergency Fund",
+    "target_amount": 10000,
+    "target_date": "2026-06-30",
+    "start_amount": 1500
+  }
+}

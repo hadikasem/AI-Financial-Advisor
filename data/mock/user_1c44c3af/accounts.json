@@ -1,0 +1,7 @@
+[
+  {"id": "a1", "type": "checking", "balance": 3200.50},
+  {"id": "a2", "type": "savings", "balance": 8500.00},
+  {"id": "a3", "type": "car_savings", "balance": 2500.00},
+  {"id": "a4", "type": "investment", "balance": 4200.75},
+  {"id": "a5", "type": "emergency_fund", "balance": 1500.00}
+]

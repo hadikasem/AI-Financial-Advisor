@@ -1,0 +1,104 @@
+{
+  "user_id": "user_060868bb",
+  "session_id": "session_0b86217e",
+  "timestamp": {
+    "created": "2025-09-24T22:45:55.983",
+    "last_updated": "2025-09-24T22:54:56.349",
+    "assessment_completed": "2025-09-24T22:54:56.349"
+  },
+  "assessment_data": {
+    "risk_profile": {
+      "score_percentage": 55.94,
+      "label": "Balanced",
+      "description": "Accepts meaningful ups and downs for moderate growth potential."
+    },
+    "answers": {
+      "age": "54",
+      "horizon": "5",
+      "emergency_fund_months": "6",
+      "dependents": "3",
+      "income_stability": "Very Very Stable",
+      "experience": "Experienced somehow",
+      "loss_tolerance": "Small dips are okay",
+      "savings_rate": "12.0",
+      "debt_load": "Moderate (35-50%)",
+      "liquidity_need": "Not sure",
+      "reaction_scenario": "Wait a bit",
+      "investment_objective": "Balanced (growth + income)"
+    },
+    "individual_scores": {
+      "age": 40.0,
+      "horizon": 65.0,
+      "emergency_fund_months": 85.0,
+      "dependents": 50.0,
+      "income_stability": 75.0,
+      "experience": 55.0,
+      "loss_tolerance": 40.0,
+      "savings_rate": 65.0,
+      "debt_load": 45.0,
+      "liquidity_need": 50.0,
+      "reaction_scenario": 45.0,
+      "investment_objective": 70.0
+    },
+    "question_weights": {
+      "age": 1.0,
+      "horizon": 1.2,
+      "emergency_fund_months": 0.8,
+      "dependents": 0.6,
+      "income_stability": 0.8,
+      "experience": 0.9,
+      "loss_tolerance": 1.2,
+      "savings_rate": 0.7,
+      "debt_load": 0.8,
+      "liquidity_need": 1.0,
+      "reaction_scenario": 1.3,
+      "investment_objective": 0.9
+    }
+  },
+  "goals": {
+    "selected_goals": [
+      {
+        "id": "goal_1",
+        "text": "Set aside $20,000 for a mid‑term family vacation fund by December 2026",
+        "source": "suggestion",
+        "added_timestamp": "2025-09-24T22:54:56.350",
+        "status": "active",
+        "suggestion_number": 6
+      },
+      {
+        "id": "goal_2",
+        "text": "Invest $25,000 in dividend‑paying ETFs by September 2025",
+        "source": "suggestion",
+        "added_timestamp": "2025-09-24T22:54:56.350",
+        "status": "active",
+        "suggestion_number": 5
+      }
+    ],
+    "deleted_goals": [
+      {
+        "id": "goal_deleted_1",
+        "text": "Save $60,000 for a daughter’s university fund by 2030",
+        "deleted_timestamp": "2025-09-24T22:54:46.799237+00:00",
+        "status": "deleted"
+      }
+    ],
+    "total_goals_considered": 10,
+    "suggestion_pages_viewed": 1
+  },
+  "session_metadata": {
+    "questions_asked": 12,
+    "questions_skipped": 0,
+    "clarifications_requested": 0,
+    "goals_explained": 0,
+    "total_session_duration_minutes": 9,
+    "llm_model_used": "gpt-oss:20b",
+    "version": "1.0.0"
+  },
+  "progress_tracking": {
+    "assessment_stage": "completed",
+    "goal_setting_stage": "completed",
+    "next_review_date": "2025-10-24T22:54:56.350",
+    "milestones": [],
+    "notes": []
+  }
+}

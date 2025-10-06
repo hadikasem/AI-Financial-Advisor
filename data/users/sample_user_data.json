@@ -1,0 +1,113 @@
+{
+  "user_id": "user_abc12345",
+  "session_id": "session_def67890",
+  "timestamp": {
+    "created": "2024-01-15T10:30:00.000",
+    "last_updated": "2024-01-15T10:45:00.000",
+    "assessment_completed": "2024-01-15T10:45:00.000"
+  },
+  "assessment_data": {
+    "risk_profile": {
+      "score_percentage": 65.5,
+      "label": "Balanced",
+      "description": "Accepts meaningful ups and downs for moderate growth potential."
+    },
+    "answers": {
+      "age": "35",
+      "horizon": "8",
+      "emergency_fund_months": "6",
+      "dependents": "2",
+      "income_stability": "Stable",
+      "experience": "Some experience",
+      "loss_tolerance": "Volatility is fine if returns are higher",
+      "savings_rate": "15",
+      "debt_load": "Manageable (20-35%)",
+      "liquidity_need": "> 3 years",
+      "reaction_scenario": "Hold",
+      "investment_objective": "Balanced (growth + income)"
+    },
+    "individual_scores": {
+      "age": 70.0,
+      "horizon": 65.0,
+      "emergency_fund_months": 70.0,
+      "dependents": 70.0,
+      "income_stability": 70.0,
+      "experience": 45.0,
+      "loss_tolerance": 70.0,
+      "savings_rate": 65.0,
+      "debt_load": 65.0,
+      "liquidity_need": 85.0,
+      "reaction_scenario": 70.0,
+      "investment_objective": 70.0
+    },
+    "question_weights": {
+      "age": 1.0,
+      "horizon": 1.2,
+      "emergency_fund_months": 0.8,
+      "dependents": 0.6,
+      "income_stability": 0.8,
+      "experience": 0.9,
+      "loss_tolerance": 1.2,
+      "savings_rate": 0.7,
+      "debt_load": 0.8,
+      "liquidity_need": 1.0,
+      "reaction_scenario": 1.3,
+      "investment_objective": 0.9
+    }
+  },
+  "goals": {
+    "selected_goals": [
+      {
+        "id": "goal_1",
+        "text": "Save $1,200 for children's education in a 529 plan by Sep 2027 (low risk)",
+        "source": "suggestion",
+        "suggestion_number": 16,
+        "added_timestamp": "2024-01-15T10:35:00.000",
+        "status": "active"
+      },
+      {
+        "id": "goal_2",
+        "text": "Put $4,000 into a gold‑exchange traded fund by Mar 2026 (moderate risk)",
+        "source": "suggestion",
+        "suggestion_number": 18,
+        "added_timestamp": "2024-01-15T10:36:00.000",
+        "status": "active"
+      },
+      {
+        "id": "goal_3",
+        "text": "Save 60000$ to build a chalet with pool",
+        "source": "custom",
+        "added_timestamp": "2024-01-15T10:37:00.000",
+        "status": "active"
+      }
+    ],
+    "deleted_goals": [
+      {
+        "id": "goal_deleted_1",
+        "text": "Invest $8,000 in a U.S. dividend‑stock ETF by Dec 2025 (moderate risk)",
+        "source": "suggestion",
+        "suggestion_number": 13,
+        "deleted_timestamp": "2024-01-15T10:36:30.000",
+        "status": "deleted"
+      }
+    ],
+    "total_goals_considered": 25,
+    "suggestion_pages_viewed": 3
+  },
+  "session_metadata": {
+    "questions_asked": 12,
+    "questions_skipped": 0,
+    "clarifications_requested": 2,
+    "goals_explained": 1,
+    "total_session_duration_minutes": 15,
+    "llm_model_used": "gpt-oss:20b",
+    "version": "1.0.0"
+  },
+  "progress_tracking": {
+    "assessment_stage": "completed",
+    "goal_setting_stage": "completed",
+    "next_review_date": "2024-02-15T10:30:00.000",
+    "milestones": [],
+    "notes": []
+  }
+}

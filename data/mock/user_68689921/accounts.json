@@ -1,0 +1,8 @@
+[
+  {"id": "checking_001", "type": "checking", "balance": 2850.75},
+  {"id": "savings_001", "type": "savings", "balance": 8500.50},
+  {"id": "investment_001", "type": "investment", "balance": 12500.25},
+  {"id": "home_down_payment", "type": "savings", "balance": 3500.00},
+  {"id": "chalet_fund", "type": "savings", "balance": 1200.00},
+  {"id": "emergency_fund", "type": "savings", "balance": 4200.00}
+]

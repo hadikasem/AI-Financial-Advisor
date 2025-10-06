@@ -1,0 +1,6 @@
+[
+  {"id": "checking_001", "type": "checking", "balance": 8500.00},
+  {"id": "savings_001", "type": "savings", "balance": 12500.00},
+  {"id": "investment_001", "type": "investment", "balance": 18500.00},
+  {"id": "investment_002", "type": "investment", "balance": 32000.00}
+]

@@ -1,0 +1,29 @@
+{
+  "user_id": "user_7a1d915e",
+  "risk_label": "Moderately Conservative",
+  "goals": [
+    {
+      "id": "goal_1",
+      "name": "Set aside $30,000 for a 2028 college fund for two children.",
+      "target_amount": 30000,
+      "target_date": "2028-12-31",
+      "start_amount": 2500,
+      "priority": 1,
+      "status": "active"
+    },
+    {
+      "id": "goal_2", 
+      "name": "save for buying a car 6000 $ in 2 years",
+      "target_amount": 6000,
+      "target_date": "2027-09-30",
+      "start_amount": 1200,
+      "priority": 2,
+      "status": "active"
+    }
+  ],
+  "allocation_strategy": {
+    "college_fund_monthly": 150,
+    "car_savings_monthly": 100,
+    "total_monthly_savings": 250
+  }
+}

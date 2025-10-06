@@ -1,0 +1,7 @@
+[
+  {"id": "checking_001", "type": "checking", "balance": 1850.75},
+  {"id": "savings_001", "type": "savings", "balance": 4200.50},
+  {"id": "investment_001", "type": "investment", "balance": 2850.25},
+  {"id": "vacation_fund", "type": "savings", "balance": 2500.00},
+  {"id": "etf_portfolio", "type": "investment", "balance": 8500.00}
+]

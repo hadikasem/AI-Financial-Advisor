@@ -1,0 +1,11 @@
+{
+  "user_id": "user_ff603d95",
+  "risk_label": "Moderately Aggressive",
+  "goal": {
+    "id": "emergency_fund_goal",
+    "name": "Emergency Fund",
+    "target_amount": 15000,
+    "target_date": "2025-12-31",
+    "start_amount": 12500
+  }
+}

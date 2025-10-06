@@ -1,0 +1,11 @@
+{
+  "user_id": "user_7a1d915e",
+  "risk_label": "Moderately Conservative",
+  "goal": {
+    "id": "goal_2",
+    "name": "save for buying a car 6000 $ in 2 years",
+    "target_amount": 6000,
+    "target_date": "2027-09-30",
+    "start_amount": 1200
+  }
+}

@@ -1,0 +1,7 @@
+[
+  {"id": "a1", "type": "savings", "balance": 8500.00},
+  {"id": "a2", "type": "checking", "balance": 1200.50},
+  {"id": "a3", "type": "investment", "balance": 3200.75},
+  {"id": "a4", "type": "college_529", "balance": 2500.00},
+  {"id": "a5", "type": "cd", "balance": 5000.00}
+]

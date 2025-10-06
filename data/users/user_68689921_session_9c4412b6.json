@@ -1,0 +1,96 @@
+{
+  "user_id": "user_68689921",
+  "session_id": "session_9c4412b6",
+  "timestamp": {
+    "created": "2025-09-29T17:05:41.258",
+    "last_updated": "2025-09-29T17:18:35.718",
+    "assessment_completed": "2025-09-29T17:18:35.718"
+  },
+  "assessment_data": {
+    "risk_profile": {
+      "score_percentage": 55.09,
+      "label": "Balanced",
+      "description": "Accepts meaningful ups and downs for moderate growth potential."
+    },
+    "answers": {
+      "age": "34",
+      "horizon": "6",
+      "emergency_fund_months": "2",
+      "dependents": "3",
+      "income_stability": "Very stable",
+      "experience": "Some experience",
+      "loss_tolerance": "Small dips are okay",
+      "savings_rate": "8.0",
+      "debt_load": "Moderate (35-50%)",
+      "liquidity_need": "I will not use any of it",
+      "reaction_scenario": "Wait a bit",
+      "investment_objective": "Balanced (growth + income)"
+    },
+    "individual_scores": {
+      "age": 70.0,
+      "horizon": 65.0,
+      "emergency_fund_months": 50.0,
+      "dependents": 50.0,
+      "income_stability": 85.0,
+      "experience": 45.0,
+      "loss_tolerance": 40.0,
+      "savings_rate": 50.0,
+      "debt_load": 45.0,
+      "liquidity_need": 50.0,
+      "reaction_scenario": 45.0,
+      "investment_objective": 70.0
+    },
+    "question_weights": {
+      "age": 1.0,
+      "horizon": 1.2,
+      "emergency_fund_months": 0.8,
+      "dependents": 0.6,
+      "income_stability": 0.8,
+      "experience": 0.9,
+      "loss_tolerance": 1.2,
+      "savings_rate": 0.7,
+      "debt_load": 0.8,
+      "liquidity_need": 1.0,
+      "reaction_scenario": 1.3,
+      "investment_objective": 0.9
+    }
+  },
+  "goals": {
+    "selected_goals": [
+      {
+        "id": "goal_1",
+        "text": "Set aside $20,000 for a home down payment by June 2027",
+        "source": "suggestion",
+        "added_timestamp": "2025-09-29T17:18:35.719",
+        "status": "active",
+        "suggestion_number": 5
+      },
+      {
+        "id": "goal_2",
+        "text": "Save for building a chalet.",
+        "source": "custom",
+        "added_timestamp": "2025-09-29T17:18:35.719",
+        "status": "active"
+      }
+    ],
+    "deleted_goals": [],
+    "total_goals_considered": 10,
+    "suggestion_pages_viewed": 1
+  },
+  "session_metadata": {
+    "questions_asked": 12,
+    "questions_skipped": 0,
+    "clarifications_requested": 0,
+    "goals_explained": 0,
+    "total_session_duration_minutes": 12,
+    "llm_model_used": "gpt-oss:20b",
+    "version": "1.0.0"
+  },
+  "progress_tracking": {
+    "assessment_stage": "completed",
+    "goal_setting_stage": "completed",
+    "next_review_date": "2025-10-29T17:18:35.719",
+    "milestones": [],
+    "notes": []
+  }
+}

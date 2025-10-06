@@ -1,0 +1,8 @@
+# Risk Assessment Agent Requirements
+
+# Core dependencies (Python standard library only)
+# No external dependencies required for basic functionality
+
+# Optional dependencies for enhanced features
+ollama>=0.1.0  # For LLM integration
+pytest>=7.0.0  # For running tests

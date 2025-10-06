@@ -1,0 +1,20 @@
+{
+  "user_id": "user_91444221",
+  "as_of": "2025-09-28T21:01:53.495497",
+  "current_amount": 2500.0,
+  "progress_pct": 4.166666666666666,
+  "pacing_status": "behind",
+  "pacing_detail": "~22 weeks behind target pace",
+  "weekly_net_savings": 480.0,
+  "savings_rate_30d": -155.0,
+  "target_amount": 60000.0,
+  "target_date": "2030-12-31",
+  "start_amount": 0.0,
+  "kpis": {
+    "total_accounts": 4,
+    "total_transactions": 60,
+    "avg_daily_net_7d": 68.57142857142857,
+    "avg_daily_net_30d": -5.166666666666667
+  },
+  "source_hash": "ec21731f"
+}

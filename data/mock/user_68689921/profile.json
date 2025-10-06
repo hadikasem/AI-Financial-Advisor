@@ -1,0 +1,26 @@
+{
+  "user_id": "user_68689921",
+  "risk_label": "Balanced",
+  "age": 34,
+  "dependents": 3,
+  "savings_rate": 8.0,
+  "debt_load": "Moderate (35-50%)",
+  "goals": [
+    {
+      "id": "goal_1",
+      "name": "Home Down Payment",
+      "target_amount": 20000,
+      "target_date": "2027-06-30",
+      "current_amount": 3500,
+      "status": "active"
+    },
+    {
+      "id": "goal_2", 
+      "name": "Chalet Building Fund",
+      "target_amount": 150000,
+      "target_date": "2030-12-31",
+      "current_amount": 1200,
+      "status": "active"
+    }
+  ]
+}

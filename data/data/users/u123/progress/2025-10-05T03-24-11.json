@@ -1,0 +1,20 @@
+{
+  "user_id": "u123",
+  "as_of": "2025-10-05T03:24:11.232972",
+  "current_amount": 4991.35,
+  "progress_pct": 41.074705882352944,
+  "pacing_status": "on_track",
+  "pacing_detail": "On track with target pace",
+  "weekly_net_savings": 100.0,
+  "savings_rate_30d": 949.3,
+  "target_amount": 10000.0,
+  "target_date": "2026-06-30",
+  "start_amount": 1500.0,
+  "kpis": {
+    "total_accounts": 3,
+    "total_transactions": 24,
+    "avg_daily_net_7d": 14.285714285714286,
+    "avg_daily_net_30d": 31.64333333333333
+  },
+  "source_hash": "f573eb9d"
+}

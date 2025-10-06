@@ -1,0 +1,11 @@
+{
+  "user_id": "user_7a1d915e",
+  "risk_label": "Moderately Conservative",
+  "goal": {
+    "id": "goal_1",
+    "name": "Set aside $30,000 for a 2028 college fund for two children.",
+    "target_amount": 30000,
+    "target_date": "2028-12-31",
+    "start_amount": 2500
+  }
+}

@@ -1,0 +1,22 @@
+[
+  {"id": "t1", "date": "2025-01-14", "amount": 7083.33, "category": "income", "description": "Salary Deposit"},
+  {"id": "t2", "date": "2025-01-13", "amount": -2500.00, "category": "housing", "description": "Rent Payment"},
+  {"id": "t3", "date": "2025-01-12", "amount": -125.50, "category": "food", "description": "Grocery Store"},
+  {"id": "t4", "date": "2025-01-11", "amount": -85.25, "category": "utilities", "description": "Electric Bill"},
+  {"id": "t5", "date": "2025-01-10", "amount": 1500.00, "category": "transfer", "description": "Monthly Savings Transfer"},
+  {"id": "t6", "date": "2025-01-08", "amount": 500.00, "category": "investment", "description": "Roth IRA Contribution"},
+  {"id": "t7", "date": "2025-01-05", "amount": 1000.00, "category": "investment", "description": "VTSAX Purchase"},
+  {"id": "t8", "date": "2025-01-03", "amount": -4.75, "category": "food", "description": "Coffee Shop"},
+  {"id": "t9", "date": "2025-01-02", "amount": -49.99, "category": "health", "description": "Gym Membership"},
+  {"id": "t10", "date": "2025-01-01", "amount": -79.99, "category": "utilities", "description": "Internet Bill"},
+  {"id": "t11", "date": "2024-12-28", "amount": 7083.33, "category": "income", "description": "Salary Deposit"},
+  {"id": "t12", "date": "2024-12-27", "amount": -120.00, "category": "food", "description": "Christmas Dinner"},
+  {"id": "t13", "date": "2024-12-25", "amount": 1500.00, "category": "transfer", "description": "Monthly Savings Transfer"},
+  {"id": "t14", "date": "2024-12-20", "amount": 7083.33, "category": "income", "description": "Salary Deposit"},
+  {"id": "t15", "date": "2024-12-18", "amount": -200.00, "category": "shopping", "description": "Holiday Gifts"},
+  {"id": "t16", "date": "2024-12-15", "amount": 1500.00, "category": "transfer", "description": "Monthly Savings Transfer"},
+  {"id": "t17", "date": "2024-12-13", "amount": -2500.00, "category": "housing", "description": "Rent Payment"},
+  {"id": "t18", "date": "2024-12-10", "amount": 7083.33, "category": "income", "description": "Salary Deposit"},
+  {"id": "t19", "date": "2024-12-08", "amount": -60.00, "category": "food", "description": "Restaurant"},
+  {"id": "t20", "date": "2024-12-05", "amount": 1500.00, "category": "transfer", "description": "Monthly Savings Transfer"}
+]

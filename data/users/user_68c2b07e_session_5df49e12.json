@@ -1,0 +1,88 @@
+{
+  "user_id": "user_68c2b07e",
+  "session_id": "session_5df49e12",
+  "timestamp": {
+    "created": "2025-09-28T18:05:42.897",
+    "last_updated": "2025-09-28T18:23:24.484",
+    "assessment_completed": "2025-09-28T18:23:24.484"
+  },
+  "assessment_data": {
+    "risk_profile": {
+      "score_percentage": 57.19,
+      "label": "Balanced",
+      "description": "Accepts meaningful ups and downs for moderate growth potential."
+    },
+    "answers": {
+      "age": "40",
+      "horizon": "4",
+      "emergency_fund_months": "2",
+      "dependents": "2",
+      "income_stability": "Very stable",
+      "experience": "Experienced",
+      "loss_tolerance": "Small dips are okay",
+      "savings_rate": "8.0",
+      "debt_load": "Moderate (35-50%)",
+      "liquidity_need": "Not sure",
+      "reaction_scenario": "Hold",
+      "investment_objective": "Balanced (growth + income)"
+    },
+    "individual_scores": {
+      "age": 55.0,
+      "horizon": 45.0,
+      "emergency_fund_months": 50.0,
+      "dependents": 70.0,
+      "income_stability": 85.0,
+      "experience": 65.0,
+      "loss_tolerance": 40.0,
+      "savings_rate": 50.0,
+      "debt_load": 45.0,
+      "liquidity_need": 50.0,
+      "reaction_scenario": 70.0,
+      "investment_objective": 70.0
+    },
+    "question_weights": {
+      "age": 1.0,
+      "horizon": 1.2,
+      "emergency_fund_months": 0.8,
+      "dependents": 0.6,
+      "income_stability": 0.8,
+      "experience": 0.9,
+      "loss_tolerance": 1.2,
+      "savings_rate": 0.7,
+      "debt_load": 0.8,
+      "liquidity_need": 1.0,
+      "reaction_scenario": 1.3,
+      "investment_objective": 0.9
+    }
+  },
+  "goals": {
+    "selected_goals": [
+      {
+        "id": "goal_1",
+        "text": "Save 15000$ for buying a car",
+        "source": "custom",
+        "added_timestamp": "2025-09-28T18:23:24.485",
+        "status": "active"
+      }
+    ],
+    "deleted_goals": [],
+    "total_goals_considered": 10,
+    "suggestion_pages_viewed": 1
+  },
+  "session_metadata": {
+    "questions_asked": 12,
+    "questions_skipped": 0,
+    "clarifications_requested": 0,
+    "goals_explained": 0,
+    "total_session_duration_minutes": 17,
+    "llm_model_used": "gpt-oss:20b",
+    "version": "1.0.0"
+  },
+  "progress_tracking": {
+    "assessment_stage": "completed",
+    "goal_setting_stage": "completed",
+    "next_review_date": "2025-10-28T18:23:24.485",
+    "milestones": [],
+    "notes": []
+  }
+}

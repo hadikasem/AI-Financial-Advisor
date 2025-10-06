@@ -1,0 +1,12 @@
+{
+  "user_id": "user_68c2b07e",
+  "risk_label": "Balanced",
+  "goal": {
+    "id": "goal_1",
+    "name": "Car Purchase Fund",
+    "target_amount": 15000,
+    "target_date": "2026-12-31",
+    "start_amount": 0,
+    "start_date": "2025-03-01"
+  }
+}
