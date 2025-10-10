@@ -217,6 +217,96 @@ def complete_assessment():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/assessment/question/<question_id>', methods=['GET'])
+@jwt_required()
+def get_question(question_id):
+    try:
+        question = assessment_service._get_question_by_id(question_id)
+        if not question:
+            return jsonify({'error': 'Question not found'}), 404
+        
+        return jsonify({'question': question}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/assessment/update-answer', methods=['POST'])
+@jwt_required()
+def update_answer():
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        question_id = data.get('question_id')
+        answer = data.get('answer')
+        
+        if not question_id or not answer:
+            return jsonify({'error': 'Question ID and answer are required'}), 400
+        
+        # Update the answer
+        result = assessment_service.update_answer(user_id, question_id, answer)
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/llm/debug', methods=['GET'])
+@jwt_required()
+def llm_debug():
+    try:
+        # Get available models
+        available_models = llm_service.get_available_models()
+        
+        return jsonify({
+            'ollama_available': llm_service.ollama_available,
+            'current_model': llm_service.model,
+            'available_models': available_models,
+            'model_found': llm_service.model in available_models
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/llm/help', methods=['POST'])
+@jwt_required()
+def llm_help():
+    try:
+        data = request.get_json()
+        question = data.get('question', '')
+        context = data.get('context', '')
+        
+        if not question:
+            return jsonify({'error': 'Question is required'}), 400
+        
+        # Get LLM response
+        answer = llm_service.get_help_response(question, context)
+        
+        return jsonify({'answer': answer}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/goals/suggestions', methods=['GET', 'POST'])
+@jwt_required()
+def get_goal_suggestions():
+    try:
+        user_id = get_jwt_identity()
+        
+        if request.method == 'POST':
+            # Generate more suggestions
+            data = request.get_json()
+            request_more = data.get('request_more', False)
+            
+            suggestions = goal_service.generate_goal_suggestions(user_id, request_more=request_more)
+        else:
+            # Get existing suggestions
+            suggestions = goal_service.get_goal_suggestions(user_id)
+        
+        return jsonify({'suggestions': suggestions}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/goals', methods=['GET'])
 @jwt_required()
 def get_goals():

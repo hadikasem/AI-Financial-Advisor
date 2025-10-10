@@ -1,3 +1,4 @@
+
 # LLM Service for Recommendations and Goal Suggestions
 
 from models import db, User, Goal, Assessment, ProgressSnapshot
@@ -14,11 +15,150 @@ class LLMService:
     def _check_ollama_availability(self) -> bool:
         """Check if Ollama is available"""
         try:
-            ollama.list()
+            models = ollama.list()
+            # Check if our model is available
+            model_names = [model['name'] for model in models.get('models', [])]
+            print(f"Available models: {model_names}")
+            
+            if 'gpt-oss:20b' not in model_names:
+                print(f"Warning: Model 'gpt-oss:20b' not found. Available models: {model_names}")
+                # Try alternative model names
+                if 'gpt-oss' in str(model_names):
+                    for model in models.get('models', []):
+                        if 'gpt-oss' in model['name']:
+                            self.model = model['name']
+                            print(f"Using alternative model: {self.model}")
+                            break
+                else:
+                    # If no gpt-oss models found, try other common models
+                    common_models = ['llama2', 'mistral', 'codellama', 'phi']
+                    for common_model in common_models:
+                        if common_model in model_names:
+                            self.model = common_model
+                            print(f"Using fallback model: {self.model}")
+                            break
             return True
-        except Exception:
+        except Exception as e:
+            print(f"Ollama not available: {e}")
             return False
     
+    def get_help_response(self, question: str, context: str = "") -> str:
+        """Get LLM response for help questions"""
+        if not self.ollama_available:
+            return "I'm sorry, the AI assistant is currently unavailable. Please try again later."
+        
+        try:
+            system_prompt = (
+                "You are a helpful financial advisor explaining terms clearly. "
+                "Answer the user's question about the financial term or concept. "
+                "Be concise but thorough. After explaining, mention that they can continue with their assessment. "
+                "If they're asking about a specific question from the assessment, reference that context."
+            )
+            
+            user_content = question
+            if context:
+                user_content = f"{question}\n\nContext: {context}"
+            
+            response = ollama.chat(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ]
+            )
+            
+            return response['message']['content']
+            
+        except Exception as e:
+            error_msg = str(e)
+            if "not found" in error_msg.lower():
+                # Try alternative models
+                return self._try_alternative_model(system_prompt, user_content)
+            else:
+                return f"I'm sorry, I couldn't process your question. Error: {error_msg}"
+
+    def _try_alternative_model(self, system_prompt: str, user_content: str) -> str:
+        """Try alternative models if the current one fails"""
+        available_models = self.get_available_models()
+        for model_name in available_models:
+            try:
+                print(f"Trying model: {model_name}")
+                response = ollama.chat(
+                    model=model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_content}
+                    ]
+                )
+                # If successful, update the current model
+                self.model = model_name
+                print(f"Successfully switched to model: {model_name}")
+                return response['message']['content']
+            except Exception as e:
+                print(f"Model {model_name} failed: {e}")
+                continue
+        
+        return "I'm sorry, none of the available AI models are working at the moment. Please try again later."
+
+    def get_available_models(self) -> List[str]:
+        """Get list of available models for debugging"""
+        try:
+            models = ollama.list()
+            return [model['name'] for model in models.get('models', [])]
+        except Exception:
+            return []
+
+    def generate_goal_suggestions(self, risk_label: str, request_more: bool = False) -> List[str]:
+        """Generate goal suggestions based on risk profile"""
+        if not self.ollama_available:
+            return self._get_fallback_goal_suggestions()
+        
+        try:
+            system_prompt = (
+                "You are a financial planning assistant. Suggest exactly 8 "
+                "concise, specific, time-aware goal options suitable for the user. "
+                "Be concrete: include amounts, durations or a month/year where relevant. "
+                "If proposing assets/sectors, add the current month/year and a brief risk note. "
+                "Do NOT guarantee returns; use cautious phrasing. "
+                "Output as 8 separate lines; no numbering, no explanations."
+            )
+            
+            user_content = f"As of {datetime.now().strftime('%B %Y')}, propose 8 goal options for a user with {risk_label} risk profile. Only list the goal titles, one per line."
+            
+            response = ollama.chat(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ]
+            )
+            
+            text = response['message']['content'].strip()
+            lines = [l.strip("-• \n\r\t") for l in text.splitlines() if l.strip()]
+            
+            # Ensure we have at least 8 suggestions
+            if len(lines) < 8:
+                fallback_suggestions = self._get_fallback_goal_suggestions()
+                lines.extend(fallback_suggestions[len(lines):])
+            
+            return lines[:8]
+            
+        except Exception as e:
+            return self._get_fallback_goal_suggestions()
+    
+    def _get_fallback_goal_suggestions(self) -> List[str]:
+        """Fallback goal suggestions when LLM is unavailable"""
+        return [
+            "Emergency Fund (3-6 months of expenses)",
+            "Retirement Savings (15% of income)",
+            "Home Down Payment (20% of home value)",
+            "Debt Payoff (High-interest debt first)",
+            "Education Fund (College savings)",
+            "Vacation Fund (Annual travel budget)",
+            "Car Purchase (New or used vehicle)",
+            "Investment Portfolio (Diversified assets)"
+        ]
+
     def get_recommendations(self, user_id: str, goal_id: Optional[str] = None) -> List[str]:
         """Get personalized recommendations for a user"""
         if not self.ollama_available:

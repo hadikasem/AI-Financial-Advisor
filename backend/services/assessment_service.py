@@ -192,6 +192,40 @@ class AssessmentService:
             'answers': assessment.answers
         }
     
+    def update_answer(self, user_id: str, question_id: str, answer: str) -> Dict[str, Any]:
+        """Update an existing answer"""
+        assessment = Assessment.query.filter_by(
+            user_id=user_id,
+            status='in_progress'
+        ).first()
+        
+        if not assessment:
+            raise ValueError("No active assessment found")
+        
+        # Validate answer
+        question = self._get_question_by_id(question_id)
+        if not question:
+            raise ValueError("Invalid question ID")
+        
+        validated_answer = self._validate_answer(question, answer)
+        if not validated_answer['valid']:
+            return {
+                'error': validated_answer['error'],
+                'current_question': question
+            }
+        
+        # Update answer
+        assessment.answers[question_id] = validated_answer['value']
+        # Force SQLAlchemy to detect the change
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(assessment, 'answers')
+        db.session.commit()
+        
+        return {
+            'message': 'Answer updated successfully',
+            'answers': assessment.answers
+        }
+
     def complete_assessment(self, user_id: str) -> Dict[str, Any]:
         """Complete the assessment and calculate risk score"""
         assessment = Assessment.query.filter_by(

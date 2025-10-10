@@ -121,3 +121,48 @@ class GoalService:
             'target_amount': float(goal.target_amount),
             'start_amount': float(goal.start_amount)
         }
+    
+    def get_goal_suggestions(self, user_id: str) -> List[str]:
+        """Get goal suggestions for a user based on their risk profile"""
+        from .llm_service import LLMService
+        
+        llm_service = LLMService()
+        
+        # Get user's risk profile
+        from models import Assessment
+        assessment = Assessment.query.filter_by(user_id=user_id, status='completed').first()
+        
+        if assessment:
+            risk_label = assessment.risk_label or "Balanced"
+            return llm_service.generate_goal_suggestions(user_id, risk_label)
+        else:
+            return self._get_default_goal_suggestions()
+    
+    def generate_goal_suggestions(self, user_id: str, request_more: bool = False) -> List[str]:
+        """Generate new goal suggestions using LLM"""
+        from .llm_service import LLMService
+        
+        llm_service = LLMService()
+        
+        # Get user's risk profile
+        from models import Assessment
+        assessment = Assessment.query.filter_by(user_id=user_id, status='completed').first()
+        
+        if assessment:
+            risk_label = assessment.risk_label or "Balanced"
+            return llm_service.generate_goal_suggestions(user_id, risk_label)
+        else:
+            return self._get_default_goal_suggestions()
+    
+    def _get_default_goal_suggestions(self) -> List[str]:
+        """Get default goal suggestions when no assessment is available"""
+        return [
+            "Emergency Fund (3-6 months of expenses)",
+            "Retirement Savings (15% of income)",
+            "Home Down Payment (20% of home value)",
+            "Debt Payoff (High-interest debt first)",
+            "Education Fund (College savings)",
+            "Vacation Fund (Annual travel budget)",
+            "Car Purchase (New or used vehicle)",
+            "Investment Portfolio (Diversified assets)"
+        ]
