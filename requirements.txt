@@ -5,4 +5,5 @@
 
 # Optional dependencies for enhanced features
 ollama>=0.1.0  # For LLM integration
+openai>=2.3.0  # For OpenAI integration
 pytest>=7.0.0  # For running tests

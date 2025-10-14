@@ -11,7 +11,7 @@ I have successfully created a comprehensive full-stack application with all the 
 - ✅ Complete risk assessment system (12 questions)
 - ✅ Goal management with predefined categories
 - ✅ Smart time-based progress simulation
-- ✅ LLM integration with Ollama
+- ✅ LLM integration with OpenAI (default) and Ollama (fallback)
 - ✅ Email notifications with SendGrid
 - ✅ In-app and push notifications
 - ✅ RESTful API with all endpoints
@@ -67,11 +67,13 @@ I have successfully created a comprehensive full-stack application with all the 
    - Pacing analysis (on track, ahead, behind)
 
 5. **LLM Integration**
-   - Ollama integration with gpt-oss:20b model
-   - Personalized recommendations
-   - Goal-specific advice
+   - OpenAI integration (GPT-3.5-turbo as default)
+   - Ollama integration (local models as fallback)
+   - Smart provider selection and automatic fallback
+   - Personalized recommendations based on risk profile
+   - Goal-specific advice and suggestions
    - Financial term explanations
-   - Fallback recommendations when LLM unavailable
+   - Provider switching via API or environment variables
 
 6. **Notifications System**
    - Milestone notifications (25%, 50%, 75%, 100%)
@@ -131,6 +133,12 @@ risk_agent/
 
 ### 🔧 Ready for Deployment
 
+**LLM Configuration**
+- Set `DEFAULT_LLM_PROVIDER=openai` in your `.env` file
+- Add your OpenAI API key: `OPENAI_API_KEY=your-key-here`
+- Ollama automatically serves as fallback when configured
+- Switch providers dynamically via API endpoints
+
 **Local Development**
 ```bash
 ./deploy.sh
@@ -152,10 +160,14 @@ terraform apply
 
 ### 🤖 LLM Integration Features
 
+- **Dual Provider Support**: OpenAI (default) and Ollama (fallback)
+- **Smart Provider Selection**: Automatically chooses best available option
 - **Personalized Recommendations**: Based on risk profile and progress
-- **Goal Suggestions**: AI-generated goal ideas
-- **Financial Education**: Term explanations and help
+- **Goal Suggestions**: AI-generated goal ideas with specific amounts and timelines
+- **Financial Education**: Term explanations and contextual help
 - **Real-time Advice**: Context-aware recommendations
+- **Provider Management**: Easy switching between OpenAI and Ollama
+- **Fallback System**: Automatic failover when primary provider is unavailable
 
 ### 🔔 Notification System
 
@@ -171,7 +183,7 @@ Your complete Risk Assessment & Goal Tracking application is ready! All features
 - ✅ Full-stack application with Flask + Streamlit
 - ✅ PostgreSQL database with complete schema
 - ✅ Smart time-based data simulation
-- ✅ LLM integration with Ollama
+- ✅ LLM integration with OpenAI (default) and Ollama (fallback)
 - ✅ Email, in-app, and push notifications
 - ✅ Docker containerization
 - ✅ AWS deployment configuration

@@ -48,7 +48,17 @@ assessment_service = AssessmentService()
 goal_service = GoalService()
 progress_service = ProgressService()
 notification_service = NotificationService()
-llm_service = LLMService()
+# Initialize LLM service lazily to avoid database context issues
+llm_service = None
+
+def get_llm_service():
+    """Get LLM service instance, creating it if needed"""
+    global llm_service
+    if llm_service is None:
+        llm_service = LLMService()
+        # Force initialization
+        llm_service._ensure_initialized()
+    return llm_service
 
 # Password validation
 def validate_password(password):
@@ -67,10 +77,50 @@ def validate_password(password):
     
     return True, "Password is valid"
 
+def validate_phone(phone):
+    """Validate phone number format"""
+    if not phone:
+        return True, "Phone number is optional"
+    
+    # Remove all non-digit characters for validation
+    digits_only = re.sub(r'\D', '', phone)
+    
+    # Check if it's a reasonable phone number length (7-15 digits)
+    if len(digits_only) < 7 or len(digits_only) > 15:
+        return False, "Phone number must be between 7 and 15 digits"
+    
+    # Check if it contains only valid phone characters
+    if not re.match(r'^[\d\s\-\+\(\)\.]+$', phone):
+        return False, "Phone number contains invalid characters"
+    
+    return True, "Phone number is valid"
+
 # Routes
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
+@app.route('/api/test/llm', methods=['POST'])
+def test_llm():
+    """Test LLM service without authentication"""
+    try:
+        data = request.get_json()
+        question = data.get('question', 'What is a stock?')
+        
+        # Get LLM service
+        llm = get_llm_service()
+        
+        # Get provider status
+        provider_status = llm.get_provider_status()
+        available_models = llm.get_available_models()
+        
+        # Test LLM response
+        answer = llm.get_help_response(question, "Test context")
+        
+        return jsonify({
+            'provider_status': provider_status,
+            'available_models': available_models,
+            'answer': answer
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
@@ -78,7 +128,7 @@ def register():
         data = request.get_json()
         
         # Validate required fields
-        required_fields = ['email', 'password', 'full_name', 'username', 'phone']
+        required_fields = ['email', 'password', 'full_name', 'username']
         for field in required_fields:
             if field not in data or not data[field]:
                 return jsonify({'error': f'{field} is required'}), 400
@@ -87,6 +137,13 @@ def register():
         is_valid, message = validate_password(data['password'])
         if not is_valid:
             return jsonify({'error': message}), 400
+        
+        # Validate phone number (optional)
+        phone = data.get('phone', '')
+        if phone:
+            is_valid_phone, phone_message = validate_phone(phone)
+            if not is_valid_phone:
+                return jsonify({'error': phone_message}), 400
         
         # Check if user already exists
         if User.query.filter_by(email=data['email']).first():
@@ -101,7 +158,7 @@ def register():
             password_hash=generate_password_hash(data['password']),
             full_name=data['full_name'],
             username=data['username'],
-            phone=data['phone']
+            phone=phone
         )
         
         db.session.add(user)
@@ -254,14 +311,14 @@ def update_answer():
 @jwt_required()
 def llm_debug():
     try:
-        # Get available models
-        available_models = llm_service.get_available_models()
+        # Get LLM service and provider status
+        llm = get_llm_service()
+        provider_status = llm.get_provider_status()
+        available_models = llm.get_available_models()
         
         return jsonify({
-            'ollama_available': llm_service.ollama_available,
-            'current_model': llm_service.model,
-            'available_models': available_models,
-            'model_found': llm_service.model in available_models
+            'provider_status': provider_status,
+            'available_models': available_models
         }), 200
         
     except Exception as e:
@@ -279,9 +336,44 @@ def llm_help():
             return jsonify({'error': 'Question is required'}), 400
         
         # Get LLM response
-        answer = llm_service.get_help_response(question, context)
+        llm = get_llm_service()
+        answer = llm.get_help_response(question, context)
         
         return jsonify({'answer': answer}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/llm/provider', methods=['GET', 'POST'])
+@jwt_required()
+def llm_provider():
+    try:
+        if request.method == 'POST':
+            # Switch provider
+            data = request.get_json()
+            new_provider = data.get('provider', '').lower()
+            
+            if new_provider not in ['openai', 'ollama']:
+                return jsonify({'error': 'Provider must be "openai" or "ollama"'}), 400
+            
+            # Update environment variable (this will require app restart to take effect)
+            os.environ['DEFAULT_LLM_PROVIDER'] = new_provider
+            
+            # Reinitialize LLM service
+            global llm_service
+            llm_service = None
+            llm = get_llm_service()
+            
+            return jsonify({
+                'message': f'Provider switched to {new_provider}. Restart required for full effect.',
+                'provider_status': llm.get_provider_status()
+            }), 200
+        else:
+            # Get current provider status
+            llm = get_llm_service()
+            return jsonify({
+                'provider_status': llm.get_provider_status()
+            }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -393,7 +485,8 @@ def get_recommendations():
         goal_id = request.args.get('goal_id')
         
         # Get recommendations
-        recommendations = llm_service.get_recommendations(user_id, goal_id)
+        llm = get_llm_service()
+        recommendations = llm.get_recommendations(user_id, goal_id)
         
         return jsonify({'recommendations': recommendations}), 200
         

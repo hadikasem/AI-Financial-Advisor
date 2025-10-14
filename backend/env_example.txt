@@ -10,7 +10,15 @@ DATABASE_URL=postgresql://username:password@localhost:5432/risk_agent_db
 # SendGrid Configuration (for email notifications)
 SENDGRID_API_KEY=your-sendgrid-api-key-here
 
-# Ollama Configuration
+# LLM Provider Configuration
+# Set to 'openai' to use OpenAI as default, 'ollama' to use Ollama as default
+DEFAULT_LLM_PROVIDER=openai
+
+# OpenAI Configuration
+OPENAI_API_KEY=your-openai-api-key-here
+OPENAI_MODEL=gpt-3.5-turbo
+
+# Ollama Configuration (fallback)
 OLLAMA_MODEL=gpt-oss:20b
 OLLAMA_HOST=http://localhost:11434
 

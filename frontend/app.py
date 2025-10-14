@@ -137,7 +137,8 @@ def init_session_state():
         'answered_questions': [],
         'current_question_index': 0,
         'goal_suggestions_visible': True,
-        'prefilled_goal': None
+        'prefilled_goal': None,
+        'cached_goal_suggestions': None
         }
 
 def display_help_chat(question_id: str, question_text: str):
@@ -407,13 +408,13 @@ def login_page():
             full_name = st.text_input("Full Name")
             username = st.text_input("Username")
             email = st.text_input("Email")
-            phone = st.text_input("Phone Number")
+            phone = st.text_input("Phone Number (Optional)", placeholder="e.g., +1-555-123-4567")
             password = st.text_input("Password", type="password")
             confirm_password = st.text_input("Confirm Password", type="password")
             submit = st.form_submit_button("Register")
             
             if submit:
-                if all([full_name, username, email, phone, password, confirm_password]):
+                if all([full_name, username, email, password, confirm_password]):
                     if password != confirm_password:
                         st.error("Passwords do not match.")
                     elif len(password) < 8:
@@ -569,12 +570,6 @@ def assessment_page():
                 if st.button("⬅️ Previous Question"):
                     prev_question = answered_questions[-2]
                     navigate_to_question(prev_question['id'])
-            
-            # Get Help button below Previous Question
-            if st.button("❓ Get Help"):
-                session = st.session_state[SESSION_STATE_KEY]
-                session['help_chat_open'] = not session.get('help_chat_open', False)
-                st.rerun()
         
         with col2:
             if st.button("Submit Answer", type="primary"):
@@ -636,7 +631,9 @@ def goals_page():
                 start_amount = st.number_input("Starting Amount ($)", min_value=0.0, step=100.0)
                 description = st.text_area("Description (Optional)")
             
-            if st.form_submit_button("Create Goal"):
+            submit_button = st.form_submit_button("Create Goal")
+            
+            if submit_button:
                 if goal_name and target_amount and target_date:
                     response = make_api_request("/goals", "POST", {
                         "name": goal_name,
@@ -652,15 +649,13 @@ def goals_page():
                         # Hide goal suggestions after successful creation
                         session = st.session_state[SESSION_STATE_KEY]
                         session['goal_suggestions_visible'] = False
-                        # Clear prefilled goal only after successful creation
+                        # Clear prefilled goal and cached suggestions only after successful creation
                         session['prefilled_goal'] = None
+                        session['cached_goal_suggestions'] = None
                         st.rerun()
                 else:
                     st.error("Please fill in all required fields.")
-            
-            # Clear prefilled goal only after form submission (successful or not)
-            if prefilled_goal:
-                session['prefilled_goal'] = None
+                    # Don't clear prefilled goal on validation error
     
     # Display existing goals
     goals_response = make_api_request("/goals", token=token)
@@ -729,9 +724,14 @@ def display_goal_suggestions(token: str):
         
         st.write(f"**Based on your {risk_label} risk profile, here are some suggested goals:**")
         
-        # Get LLM-generated goal suggestions
-        suggestions_response = make_api_request("/goals/suggestions", token=token)
-        suggestions = suggestions_response.get('suggestions', []) if suggestions_response else []
+        # Get LLM-generated goal suggestions (use cached if available)
+        cached_suggestions = session.get('cached_goal_suggestions')
+        if cached_suggestions is None:
+            suggestions_response = make_api_request("/goals/suggestions", token=token)
+            suggestions = suggestions_response.get('suggestions', []) if suggestions_response else []
+            session['cached_goal_suggestions'] = suggestions
+        else:
+            suggestions = cached_suggestions
         
         if suggestions:
             for i, suggestion in enumerate(suggestions, 1):
@@ -751,9 +751,13 @@ def display_goal_suggestions(token: str):
                     more_suggestions_response = make_api_request("/goals/suggestions", "POST", {
                         "request_more": True
                     }, token=token)
-                    if more_suggestions_response:
+                    if more_suggestions_response and 'suggestions' in more_suggestions_response:
+                        # Update cached suggestions with new ones
+                        session['cached_goal_suggestions'] = more_suggestions_response['suggestions']
                         st.success("More suggestions generated!")
                         st.rerun()
+                    else:
+                        st.error("Failed to generate more suggestions. Please try again.")
         else:
             st.info("No personalized suggestions available. Complete your assessment for better recommendations.")
     else:

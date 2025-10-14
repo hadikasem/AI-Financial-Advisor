@@ -1,7 +1,5 @@
 # Docker Compose Configuration for Full-Stack Risk Assessment App
 
-version: '3.8'
-
 services:
   # PostgreSQL Database
   db:
@@ -20,6 +18,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
+    restart: unless-stopped
 
   # Flask Backend API
   backend:
@@ -28,30 +28,22 @@ services:
       - DATABASE_URL=postgresql://risk_agent_user:risk_agent_password@db:5432/risk_agent_db
       - SECRET_KEY=your-super-secret-key-change-this-in-production
       - JWT_SECRET_KEY=jwt-secret-key-change-this-in-production
-      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
-      - OLLAMA_MODEL=gpt-oss:20b
-      - OLLAMA_HOST=http://ollama:11434
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY:-}
+      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-openai}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-3.5-turbo}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gpt-oss:20b}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
     ports:
       - "5000:5000"
     depends_on:
-      db:
-        condition: service_healthy
-      ollama:
-        condition: service_started
+      - db
     volumes:
       - ./backend:/app
     command: python app.py
-
-  # Ollama LLM Service
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    environment:
-      - OLLAMA_HOST=0.0.0.0
-    command: serve
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
 
   # Streamlit Frontend
   frontend:
@@ -65,10 +57,10 @@ services:
     volumes:
       - ./frontend:/app
     command: streamlit run app.py --server.address 0.0.0.0 --server.port 8501
+    restart: unless-stopped
 
 volumes:
   postgres_data:
-  ollama_data:
 
 networks:
   default:

@@ -124,34 +124,27 @@ class GoalService:
     
     def get_goal_suggestions(self, user_id: str) -> List[str]:
         """Get goal suggestions for a user based on their risk profile"""
-        from .llm_service import LLMService
-        
-        llm_service = LLMService()
-        
-        # Get user's risk profile
-        from models import Assessment
-        assessment = Assessment.query.filter_by(user_id=user_id, status='completed').first()
-        
-        if assessment:
-            risk_label = assessment.risk_label or "Balanced"
-            return llm_service.generate_goal_suggestions(user_id, risk_label)
-        else:
-            return self._get_default_goal_suggestions()
+        return self.generate_goal_suggestions(user_id, request_more=False)
     
     def generate_goal_suggestions(self, user_id: str, request_more: bool = False) -> List[str]:
         """Generate new goal suggestions using LLM"""
-        from .llm_service import LLMService
-        
-        llm_service = LLMService()
-        
-        # Get user's risk profile
-        from models import Assessment
-        assessment = Assessment.query.filter_by(user_id=user_id, status='completed').first()
-        
-        if assessment:
-            risk_label = assessment.risk_label or "Balanced"
-            return llm_service.generate_goal_suggestions(user_id, risk_label)
-        else:
+        # Import LLM service lazily to avoid initialization issues
+        try:
+            from .llm_service import LLMService
+            llm_service = LLMService()
+            
+            # Get user's risk profile
+            from models import Assessment
+            assessment = Assessment.query.filter_by(user_id=user_id, status='completed').first()
+            
+            if assessment:
+                risk_label = assessment.risk_label or "Balanced"
+                # Generate fresh suggestions each time
+                return llm_service.generate_goal_suggestions(user_id, risk_label)
+            else:
+                return self._get_default_goal_suggestions()
+        except Exception as e:
+            print(f"Error generating goal suggestions: {e}")
             return self._get_default_goal_suggestions()
     
     def _get_default_goal_suggestions(self) -> List[str]:
