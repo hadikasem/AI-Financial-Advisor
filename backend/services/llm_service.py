@@ -242,12 +242,11 @@ class LLMService:
         provider = self._get_available_provider()
         print(f"DEBUG: LLM Provider available: {provider}")
         if not provider:
-            print("WARNING: No LLM provider available, using fallback recommendations")
-            return self._get_fallback_recommendations()
+            raise RuntimeError("LLM is not available. Cannot generate personalized recommendations.")
         
         try:
             # Import database models only when needed
-            from models import User, Assessment, Goal, ProgressSnapshot, Recommendation
+            from models import User, Assessment, Goal, ProgressSnapshot, Recommendation, db
             
             # Check if we have stored recommendations
             stored_recommendation = Recommendation.query.filter_by(
@@ -265,13 +264,13 @@ class LLMService:
             
         except Exception as e:
             print(f"Error getting recommendations: {e}")
-            return self._get_fallback_recommendations()
+            raise RuntimeError(f"Failed to generate recommendations: {str(e)}")
     
     def _generate_and_save_recommendations(self, user_id: str, goal_id: Optional[str] = None) -> List[str]:
         """Generate new recommendations and save them to the database"""
         try:
             # Import database models only when needed
-            from models import User, Assessment, Goal, ProgressSnapshot, Recommendation
+            from models import User, Assessment, Goal, ProgressSnapshot, Recommendation, db
             
             # Get user data
             user = User.query.get(user_id)
@@ -331,13 +330,13 @@ class LLMService:
             
         except Exception as e:
             print(f"Error generating and saving recommendations: {e}")
-            return self._get_fallback_recommendations()
+            raise RuntimeError(f"Failed to generate recommendations: {str(e)}")
     
     def update_recommendations(self, user_id: str, goal_id: Optional[str] = None) -> List[str]:
         """Update recommendations based on current progress"""
         try:
             # Import database models only when needed
-            from models import User, Assessment, Goal, ProgressSnapshot, Recommendation
+            from models import User, Assessment, Goal, ProgressSnapshot, Recommendation, db
             
             # Get user data
             user = User.query.get(user_id)
@@ -409,13 +408,13 @@ class LLMService:
             
         except Exception as e:
             print(f"Error updating recommendations: {e}")
-            return self._get_fallback_recommendations()
+            raise RuntimeError(f"Failed to update recommendations: {str(e)}")
     
     def generate_goal_suggestions(self, user_id: str, risk_profile: str) -> List[str]:
         """Generate goal suggestions based on user's risk profile"""
         provider = self._get_available_provider()
         if not provider:
-            return self._get_fallback_goal_suggestions(risk_profile)
+            raise RuntimeError("LLM is not available. Cannot generate goal suggestions.")
         
         try:
             # Import database models only when needed
@@ -466,11 +465,11 @@ class LLMService:
                 if line and not line.startswith('#') and len(line) > 10:
                     suggestions.append(line)
             
-            return suggestions[:10] if suggestions else self._get_fallback_goal_suggestions(risk_profile)
+            return suggestions[:10] if suggestions else []
             
         except Exception as e:
             print(f"Error generating goal suggestions: {e}")
-            return self._get_fallback_goal_suggestions(risk_profile)
+            raise RuntimeError(f"Failed to generate goal suggestions: {str(e)}")
     
     def _generate_goal_specific_recommendations(self, goal, progress, risk_profile: str) -> List[str]:
         """Generate recommendations specific to a goal's progress"""
@@ -529,11 +528,11 @@ class LLMService:
                     recommendations.append(line)
             
             print(f"DEBUG: Parsed {len(recommendations)} goal-specific recommendations")
-            return recommendations[:5] if recommendations else self._get_fallback_recommendations()
+            return recommendations[:5] if recommendations else []
             
         except Exception as e:
             print(f"Error generating goal-specific recommendations: {e}")
-            return self._get_fallback_recommendations()
+            raise RuntimeError(f"Failed to generate goal-specific recommendations: {str(e)}")
     
     def _generate_general_recommendations(self, risk_profile: str) -> List[str]:
         """Generate general financial recommendations"""
@@ -580,11 +579,11 @@ class LLMService:
                     recommendations.append(line)
             
             print(f"DEBUG: Parsed {len(recommendations)} recommendations")
-            return recommendations[:5] if recommendations else self._get_fallback_recommendations()
+            return recommendations[:5] if recommendations else []
             
         except Exception as e:
             print(f"Error generating general recommendations: {e}")
-            return self._get_fallback_recommendations()
+            raise RuntimeError(f"Failed to generate general recommendations: {str(e)}")
     
     def explain_financial_term(self, term: str) -> str:
         """Explain a financial term using LLM"""
@@ -638,39 +637,3 @@ class LLMService:
             'current_provider': self._get_available_provider().value if self._get_available_provider() else None
         }
     
-    def _get_fallback_recommendations(self) -> List[str]:
-        """Fallback recommendations when LLM is not available"""
-        print("WARNING: Using fallback recommendations - LLM may not be available")
-        return [
-            "Consider increasing your monthly savings by 5-10% to accelerate goal achievement",
-            "Review your spending categories to identify areas for cost reduction", 
-            "Set up automatic transfers to your savings account on payday",
-            "Consider diversifying your investments based on your risk tolerance",
-            "Regularly review and adjust your goals based on life changes"
-        ]
-    
-    def _get_fallback_goal_suggestions(self, risk_profile: str) -> List[str]:
-        """Fallback goal suggestions when LLM is not available"""
-        current_year = datetime.now().year
-        next_year = current_year + 1
-        
-        base_suggestions = [
-            f"Build emergency fund of $10,000 by December {current_year}",
-            f"Save $5,000 for vacation by June {next_year}",
-            f"Contribute $6,000 to Roth IRA by April {next_year}",
-            f"Save $20,000 for home down payment by December {next_year + 1}",
-            f"Pay off $15,000 credit card debt by September {next_year}",
-            f"Save $2,000 for car maintenance fund by March {next_year}",
-            f"Invest $3,000 in index funds by May {next_year}",
-            f"Save $8,000 for children's education by December {next_year + 2}",
-            f"Build $25,000 emergency fund by December {next_year}",
-            f"Save $12,000 for home renovation by August {next_year + 1}"
-        ]
-        
-        # Adjust suggestions based on risk profile
-        if risk_profile == "Conservative":
-            return base_suggestions[:8]  # Focus on safer goals
-        elif risk_profile == "Aggressive":
-            return base_suggestions[2:] + [f"Invest $10,000 in growth stocks by June {next_year}"]  # More investment-focused
-        else:
-            return base_suggestions

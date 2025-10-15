@@ -479,14 +479,19 @@ def display_assessment_results(assessment_data):
     token = session['access_token']
     
     suggestions_response = make_api_request("/recommendations", token=token)
-    suggestions = suggestions_response.get('recommendations', []) if suggestions_response else []
     
-    if suggestions:
+    if suggestions_response and 'error' in suggestions_response:
+        st.error(f"❌ {suggestions_response['error']}")
+        st.info("Please check your LLM configuration and try again.")
+    elif suggestions_response and suggestions_response.get('recommendations'):
+        suggestions = suggestions_response['recommendations']
         st.markdown('<div class="suggestions-box">', unsafe_allow_html=True)
         st.subheader("💡 Personalized Recommendations")
         for i, suggestion in enumerate(suggestions, 1):
             st.write(f"{i}. {suggestion}")
         st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.error("❌ Unable to generate personalized recommendations. Please check your LLM configuration.")
     
     # Prompt to create goals
     st.success("🎉 Assessment complete! Now let's set up your financial goals.")
@@ -811,6 +816,7 @@ def dashboard_page():
                 goals = goals_response.get('goals', []) if goals_response else []
                 
                 recommendations_updated = 0
+                recommendations_errors = 0
                 for goal in goals:
                     try:
                         update_response = make_api_request("/recommendations/update", "POST", {
@@ -818,12 +824,20 @@ def dashboard_page():
                         }, token=token)
                         if update_response and 'recommendations' in update_response:
                             recommendations_updated += 1
+                        elif update_response and 'error' in update_response:
+                            recommendations_errors += 1
+                            print(f"Error updating recommendations for goal {goal['id']}: {update_response['error']}")
                     except Exception as e:
+                        recommendations_errors += 1
                         print(f"Error updating recommendations for goal {goal['id']}: {e}")
                 
                 if progress_response:
-                    if recommendations_updated > 0:
+                    if recommendations_updated > 0 and recommendations_errors == 0:
                         st.success(f"Progress and recommendations updated successfully! ({recommendations_updated} goals)")
+                    elif recommendations_updated > 0 and recommendations_errors > 0:
+                        st.warning(f"Progress updated successfully! Recommendations updated for {recommendations_updated} goals, but {recommendations_errors} failed due to LLM issues.")
+                    elif recommendations_errors > 0:
+                        st.warning(f"Progress updated successfully! However, recommendations could not be updated due to LLM issues.")
                     else:
                         st.success("Progress updated successfully!")
                     time.sleep(1)
@@ -926,12 +940,17 @@ def dashboard_page():
             
             # Get recommendations
             recommendations_response = make_api_request(f"/recommendations?goal_id={goal['id']}", token=token)
-            recommendations = recommendations_response.get('recommendations', []) if recommendations_response else []
             
-            if recommendations:
+            if recommendations_response and 'error' in recommendations_response:
+                st.error(f"❌ {recommendations_response['error']}")
+                st.info("Please check your LLM configuration.")
+            elif recommendations_response and recommendations_response.get('recommendations'):
+                recommendations = recommendations_response['recommendations']
                 st.subheader("💡 Recommendations")
                 for i, rec in enumerate(recommendations, 1):
                     st.write(f"{i}. {rec}")
+            else:
+                st.error("❌ Unable to load recommendations. Please check your LLM configuration.")
         
         st.divider()
 
