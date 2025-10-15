@@ -126,7 +126,7 @@ class GoalService:
         """Get goal suggestions for a user based on their risk profile"""
         return self.generate_goal_suggestions(user_id, request_more=False)
     
-    def generate_goal_suggestions(self, user_id: str, request_more: bool = False) -> List[str]:
+    def generate_goal_suggestions(self, user_id: str, request_more: bool = False, existing_suggestions: List[str] = None) -> List[str]:
         """Generate new goal suggestions using LLM"""
         # Import LLM service lazily to avoid initialization issues
         try:
@@ -139,8 +139,16 @@ class GoalService:
             
             if assessment:
                 risk_label = assessment.risk_label or "Balanced"
-                # Generate fresh suggestions each time
-                return llm_service.generate_goal_suggestions(user_id, risk_label)
+                
+                if request_more and existing_suggestions:
+                    # Generate additional suggestions to append
+                    new_suggestions = llm_service.generate_goal_suggestions(user_id, risk_label)
+                    # Combine existing and new suggestions
+                    combined_suggestions = existing_suggestions + new_suggestions
+                    return combined_suggestions
+                else:
+                    # Generate fresh suggestions
+                    return llm_service.generate_goal_suggestions(user_id, risk_label)
             else:
                 return self._get_default_goal_suggestions()
         except Exception as e:

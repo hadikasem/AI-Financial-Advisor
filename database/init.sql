@@ -107,6 +107,17 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create recommendations table
+CREATE TABLE IF NOT EXISTS recommendations (
+    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    goal_id VARCHAR(36) REFERENCES goals(id) ON DELETE CASCADE,
+    recommendations JSONB NOT NULL,
+    context_data JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
@@ -121,6 +132,8 @@ CREATE INDEX IF NOT EXISTS idx_progress_snapshots_user_id ON progress_snapshots(
 CREATE INDEX IF NOT EXISTS idx_progress_snapshots_goal_id ON progress_snapshots(goal_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_recommendations_user_id ON recommendations(user_id);
+CREATE INDEX IF NOT EXISTS idx_recommendations_goal_id ON recommendations(goal_id);
 
 -- Create trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

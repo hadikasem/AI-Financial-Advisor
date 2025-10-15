@@ -395,6 +395,17 @@ def login_page():
                             'user': response['user'],
                             'access_token': response['access_token']
                         })
+                        
+                        # Load existing assessment if any
+                        try:
+                            assessment_response = make_api_request("/assessment/current", token=response['access_token'])
+                            if assessment_response and assessment_response.get('status') == 'completed':
+                                st.session_state[SESSION_STATE_KEY]['assessment_completed'] = assessment_response
+                            elif assessment_response and assessment_response.get('status') == 'in_progress':
+                                st.session_state[SESSION_STATE_KEY]['current_assessment'] = assessment_response
+                        except Exception as e:
+                            print(f"Error loading existing assessment: {e}")
+                        
                         st.success("Login successful!")
                         st.rerun()
                     else:
@@ -483,15 +494,26 @@ def display_assessment_results(assessment_data):
     col1, col2, col3 = st.columns([1, 2, 1])
     with col1:
         if st.button("🔄 Retake Assessment", use_container_width=True):
-            # Clear assessment data and restart
+            # Start a new assessment using the API
             session = st.session_state[SESSION_STATE_KEY]
-            session['assessment_completed'] = None
-            session['current_assessment'] = None
-            session['answered_questions'] = []
-            session['help_chat_open'] = False
-            session['help_chat_messages'] = []
-            session['help_questions_count'] = 0
-            st.rerun()
+            token = session['access_token']
+            
+            try:
+                response = make_api_request("/assessment/retake", "POST", token=token)
+                if response and "assessment_id" in response:
+                    # Clear session state and start fresh
+                    session['assessment_completed'] = None
+                    session['current_assessment'] = response
+                    session['answered_questions'] = []
+                    session['help_chat_open'] = False
+                    session['help_chat_messages'] = []
+                    session['help_questions_count'] = 0
+                    st.success("New assessment started!")
+                    st.rerun()
+                else:
+                    st.error("Failed to start new assessment. Please try again.")
+            except Exception as e:
+                st.error(f"Error starting new assessment: {str(e)}")
     with col2:
         if st.button("🎯 Set Up Your Goals", type="primary", use_container_width=True):
             st.session_state[SESSION_STATE_KEY]['current_page'] = 'Goals'
@@ -746,18 +768,24 @@ def display_goal_suggestions(token: str):
                         st.rerun()
             
             # Button to get more suggestions
-            if st.button("🔄 Get More Suggestions"):
-                with st.spinner("Generating more suggestions..."):
-                    more_suggestions_response = make_api_request("/goals/suggestions", "POST", {
-                        "request_more": True
-                    }, token=token)
-                    if more_suggestions_response and 'suggestions' in more_suggestions_response:
-                        # Update cached suggestions with new ones
-                        session['cached_goal_suggestions'] = more_suggestions_response['suggestions']
-                        st.success("More suggestions generated!")
-                        st.rerun()
-                    else:
-                        st.error("Failed to generate more suggestions. Please try again.")
+            if len(suggestions) < 100:
+                if st.button("🔄 Get More Suggestions"):
+                    with st.spinner("Generating more suggestions..."):
+                        more_suggestions_response = make_api_request("/goals/suggestions", "POST", {
+                            "request_more": True,
+                            "existing_suggestions": suggestions
+                        }, token=token)
+                        if more_suggestions_response and 'suggestions' in more_suggestions_response:
+                            # Update cached suggestions with new ones
+                            session['cached_goal_suggestions'] = more_suggestions_response['suggestions']
+                            st.success("More suggestions generated!")
+                            st.rerun()
+                        elif more_suggestions_response and 'error' in more_suggestions_response:
+                            st.error(more_suggestions_response['error'])
+                        else:
+                            st.error("Failed to generate more suggestions. Please try again.")
+            else:
+                st.info("Maximum number of suggested goals reached (100).")
         else:
             st.info("No personalized suggestions available. Complete your assessment for better recommendations.")
     else:
@@ -774,12 +802,34 @@ def dashboard_page():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         if st.button("🔄 Update Progress", type="primary", use_container_width=True):
-            with st.spinner("Updating progress..."):
-                response = make_api_request("/progress/update", "POST", token=token)
-                if response:
-                    st.success("Progress updated successfully!")
+            with st.spinner("Updating progress and recommendations..."):
+                # Update progress
+                progress_response = make_api_request("/progress/update", "POST", token=token)
+                
+                # Update recommendations for all goals
+                goals_response = make_api_request("/goals", token=token)
+                goals = goals_response.get('goals', []) if goals_response else []
+                
+                recommendations_updated = 0
+                for goal in goals:
+                    try:
+                        update_response = make_api_request("/recommendations/update", "POST", {
+                            "goal_id": goal['id']
+                        }, token=token)
+                        if update_response and 'recommendations' in update_response:
+                            recommendations_updated += 1
+                    except Exception as e:
+                        print(f"Error updating recommendations for goal {goal['id']}: {e}")
+                
+                if progress_response:
+                    if recommendations_updated > 0:
+                        st.success(f"Progress and recommendations updated successfully! ({recommendations_updated} goals)")
+                    else:
+                        st.success("Progress updated successfully!")
                     time.sleep(1)
                     st.rerun()
+                else:
+                    st.error("Failed to update progress.")
     
     # Get goals and their progress
     goals_response = make_api_request("/goals", token=token)

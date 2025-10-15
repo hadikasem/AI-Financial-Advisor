@@ -307,6 +307,82 @@ def update_answer():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/assessment/current', methods=['GET'])
+@jwt_required()
+def get_current_assessment():
+    """Get the user's current assessment (completed or in progress)"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Get the most recent completed assessment
+        completed_assessment = Assessment.query.filter_by(
+            user_id=user_id,
+            status='completed'
+        ).order_by(Assessment.completed_at.desc()).first()
+        
+        if completed_assessment:
+            return jsonify({
+                'assessment': completed_assessment.to_dict(),
+                'risk_profile': {
+                    'score': completed_assessment.risk_score,
+                    'label': completed_assessment.risk_label,
+                    'description': completed_assessment.risk_description
+                },
+                'status': 'completed'
+            }), 200
+        
+        # Check for in-progress assessment
+        in_progress_assessment = Assessment.query.filter_by(
+            user_id=user_id,
+            status='in_progress'
+        ).order_by(Assessment.created_at.desc()).first()
+        
+        if in_progress_assessment:
+            current_question = assessment_service._get_next_question(in_progress_assessment.answers)
+            return jsonify({
+                'assessment': in_progress_assessment.to_dict(),
+                'current_question': current_question,
+                'status': 'in_progress'
+            }), 200
+        
+        # No assessment found
+        return jsonify({
+            'assessment': None,
+            'status': 'none'
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/assessment/retake', methods=['POST'])
+@jwt_required()
+def retake_assessment():
+    """Start a new assessment (retake) for the user"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Mark any existing in-progress assessment as cancelled
+        existing_in_progress = Assessment.query.filter_by(
+            user_id=user_id,
+            status='in_progress'
+        ).all()
+        
+        for assessment in existing_in_progress:
+            assessment.status = 'cancelled'
+        
+        # Start a new assessment
+        assessment = assessment_service.start_assessment(user_id)
+        
+        return jsonify({
+            'message': 'New assessment started',
+            'assessment_id': assessment['id'],
+            'current_question': assessment['current_question'],
+            'answers': assessment.get('answers', {})
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/llm/debug', methods=['GET'])
 @jwt_required()
 def llm_debug():
@@ -388,8 +464,17 @@ def get_goal_suggestions():
             # Generate more suggestions
             data = request.get_json()
             request_more = data.get('request_more', False)
+            existing_suggestions = data.get('existing_suggestions', [])
             
-            suggestions = goal_service.generate_goal_suggestions(user_id, request_more=request_more)
+            # Check if we've reached the maximum limit
+            if len(existing_suggestions) >= 100:
+                return jsonify({'error': 'Maximum number of suggested goals reached (100).'}), 400
+            
+            suggestions = goal_service.generate_goal_suggestions(
+                user_id, 
+                request_more=request_more, 
+                existing_suggestions=existing_suggestions
+            )
         else:
             # Get existing suggestions
             suggestions = goal_service.get_goal_suggestions(user_id)
@@ -489,6 +574,53 @@ def get_recommendations():
         recommendations = llm.get_recommendations(user_id, goal_id)
         
         return jsonify({'recommendations': recommendations}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/recommendations/update', methods=['POST'])
+@jwt_required()
+def update_recommendations():
+    """Update recommendations based on current progress"""
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json() or {}
+        goal_id = data.get('goal_id')
+        
+        # Update recommendations
+        llm = get_llm_service()
+        recommendations = llm.update_recommendations(user_id, goal_id)
+        
+        return jsonify({'recommendations': recommendations}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/recommendations/debug', methods=['GET'])
+@jwt_required()
+def debug_recommendations():
+    """Debug endpoint to check recommendation generation"""
+    try:
+        user_id = get_jwt_identity()
+        goal_id = request.args.get('goal_id')
+        
+        # Get LLM service debug info
+        llm = get_llm_service()
+        debug_info = llm.get_debug_info()
+        
+        # Check stored recommendations
+        from models import Recommendation
+        stored_recommendation = Recommendation.query.filter_by(
+            user_id=user_id,
+            goal_id=goal_id
+        ).order_by(Recommendation.updated_at.desc()).first()
+        
+        return jsonify({
+            'llm_debug': debug_info,
+            'stored_recommendation': stored_recommendation.to_dict() if stored_recommendation else None,
+            'user_id': user_id,
+            'goal_id': goal_id
+        }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

@@ -240,12 +240,38 @@ class LLMService:
     def get_recommendations(self, user_id: str, goal_id: Optional[str] = None) -> List[str]:
         """Get personalized recommendations for a user"""
         provider = self._get_available_provider()
+        print(f"DEBUG: LLM Provider available: {provider}")
         if not provider:
+            print("WARNING: No LLM provider available, using fallback recommendations")
             return self._get_fallback_recommendations()
         
         try:
             # Import database models only when needed
-            from models import User, Assessment, Goal, ProgressSnapshot
+            from models import User, Assessment, Goal, ProgressSnapshot, Recommendation
+            
+            # Check if we have stored recommendations
+            stored_recommendation = Recommendation.query.filter_by(
+                user_id=user_id,
+                goal_id=goal_id
+            ).order_by(Recommendation.updated_at.desc()).first()
+            
+            if stored_recommendation:
+                print(f"DEBUG: Returning stored recommendations for user {user_id}, goal {goal_id}")
+                return stored_recommendation.recommendations
+            
+            # No stored recommendations, generate new ones
+            print(f"DEBUG: No stored recommendations found, generating new ones for user {user_id}, goal {goal_id}")
+            return self._generate_and_save_recommendations(user_id, goal_id)
+            
+        except Exception as e:
+            print(f"Error getting recommendations: {e}")
+            return self._get_fallback_recommendations()
+    
+    def _generate_and_save_recommendations(self, user_id: str, goal_id: Optional[str] = None) -> List[str]:
+        """Generate new recommendations and save them to the database"""
+        try:
+            # Import database models only when needed
+            from models import User, Assessment, Goal, ProgressSnapshot, Recommendation
             
             # Get user data
             user = User.query.get(user_id)
@@ -270,15 +296,119 @@ class LLMService:
                 
                 if progress:
                     recommendations = self._generate_goal_specific_recommendations(goal, progress, risk_profile)
+                    context_data = {
+                        'goal_id': goal_id,
+                        'goal_name': goal.name,
+                        'progress_pct': progress.progress_pct,
+                        'pacing_status': progress.pacing_status,
+                        'risk_profile': risk_profile
+                    }
                 else:
                     recommendations = self._generate_general_recommendations(risk_profile)
+                    context_data = {
+                        'goal_id': goal_id,
+                        'goal_name': goal.name,
+                        'risk_profile': risk_profile
+                    }
             else:
                 recommendations = self._generate_general_recommendations(risk_profile)
+                context_data = {
+                    'risk_profile': risk_profile
+                }
+            
+            # Save recommendations to database
+            recommendation_record = Recommendation(
+                user_id=user_id,
+                goal_id=goal_id,
+                recommendations=recommendations,
+                context_data=context_data
+            )
+            
+            db.session.add(recommendation_record)
+            db.session.commit()
             
             return recommendations
             
         except Exception as e:
-            print(f"Error generating recommendations: {e}")
+            print(f"Error generating and saving recommendations: {e}")
+            return self._get_fallback_recommendations()
+    
+    def update_recommendations(self, user_id: str, goal_id: Optional[str] = None) -> List[str]:
+        """Update recommendations based on current progress"""
+        try:
+            # Import database models only when needed
+            from models import User, Assessment, Goal, ProgressSnapshot, Recommendation
+            
+            # Get user data
+            user = User.query.get(user_id)
+            if not user:
+                return []
+            
+            # Get user's risk profile
+            assessment = Assessment.query.filter_by(user_id=user_id, status='completed').first()
+            risk_profile = assessment.risk_label if assessment else "Balanced"
+            
+            # Generate new recommendations based on current progress
+            if goal_id:
+                goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+                if not goal:
+                    return []
+                
+                # Get latest progress
+                progress = ProgressSnapshot.query.filter_by(
+                    user_id=user_id, 
+                    goal_id=goal_id
+                ).order_by(ProgressSnapshot.as_of.desc()).first()
+                
+                if progress:
+                    recommendations = self._generate_goal_specific_recommendations(goal, progress, risk_profile)
+                    context_data = {
+                        'goal_id': goal_id,
+                        'goal_name': goal.name,
+                        'progress_pct': progress.progress_pct,
+                        'pacing_status': progress.pacing_status,
+                        'risk_profile': risk_profile
+                    }
+                else:
+                    recommendations = self._generate_general_recommendations(risk_profile)
+                    context_data = {
+                        'goal_id': goal_id,
+                        'goal_name': goal.name,
+                        'risk_profile': risk_profile
+                    }
+            else:
+                recommendations = self._generate_general_recommendations(risk_profile)
+                context_data = {
+                    'risk_profile': risk_profile
+                }
+            
+            # Update or create recommendation record
+            existing_recommendation = Recommendation.query.filter_by(
+                user_id=user_id,
+                goal_id=goal_id
+            ).first()
+            
+            if existing_recommendation:
+                # Update existing recommendation
+                existing_recommendation.recommendations = recommendations
+                existing_recommendation.context_data = context_data
+                existing_recommendation.updated_at = datetime.utcnow()
+            else:
+                # Create new recommendation
+                recommendation_record = Recommendation(
+                    user_id=user_id,
+                    goal_id=goal_id,
+                    recommendations=recommendations,
+                    context_data=context_data
+                )
+                db.session.add(recommendation_record)
+            
+            db.session.commit()
+            
+            return recommendations
+            
+        except Exception as e:
+            print(f"Error updating recommendations: {e}")
             return self._get_fallback_recommendations()
     
     def generate_goal_suggestions(self, user_id: str, risk_profile: str) -> List[str]:
@@ -308,7 +438,9 @@ class LLMService:
                 "actionable financial goal suggestions based on the user's risk profile and context. "
                 "Each goal should include a specific amount and timeline. "
                 "Be concrete and realistic. Format each goal as a single line. "
-                f"IMPORTANT: Use dates from {datetime.now().strftime('%B %Y')} onwards. Do not use past dates."
+                "IMPORTANT: Do not include numbering (1., 2., etc.) in your response. "
+                "Each goal should be on a separate line without any numbering. "
+                f"Use dates from {datetime.now().strftime('%B %Y')} onwards. Do not use past dates."
             )
             
             user_prompt = f"""
@@ -343,10 +475,13 @@ class LLMService:
     def _generate_goal_specific_recommendations(self, goal, progress, risk_profile: str) -> List[str]:
         """Generate recommendations specific to a goal's progress"""
         try:
+            print(f"DEBUG: Generating goal-specific recommendations for goal: {goal.name}, progress: {progress.progress_pct}%, risk: {risk_profile}")
             system_prompt = (
                 "You are a financial coach. Based on the goal progress data, provide 3-5 "
                 "specific, actionable recommendations to help the user achieve their goal. "
-                "Be practical and realistic. Each recommendation should be 1-2 sentences."
+                "Be practical and realistic. Each recommendation should be 1-2 sentences. "
+                "IMPORTANT: Do not include numbering (1., 2., etc.) in your response. "
+                "Each recommendation should be on a separate line without any numbering."
             )
             
             user_prompt = f"""
@@ -362,15 +497,38 @@ class LLMService:
             Provide specific recommendations to help achieve this goal.
             """
             
+            print(f"DEBUG: Making LLM request for goal-specific recommendations")
             response_text = self._make_llm_request(system_prompt, user_prompt)
+            print(f"DEBUG: LLM response received: {response_text[:100]}...")
             
             # Parse recommendations
             recommendations = []
             for line in response_text.split('\n'):
                 line = line.strip()
-                if line and not line.startswith('#') and len(line) > 20:
+                if not line or line.startswith('#'):
+                    continue
+                
+                # Clean up formatting (remove numbering, bullets, etc.)
+                if line[0].isdigit() and ('.' in line[:3] or ')' in line[:3] or '-' in line[:3]):
+                    # Remove numbering (e.g., "1) ", "1. ", "1- ")
+                    if '. ' in line[:3]:
+                        line = line.split('. ', 1)[1]
+                    elif ') ' in line[:3]:
+                        line = line.split(') ', 1)[1]
+                    elif '- ' in line[:3]:
+                        line = line.split('- ', 1)[1]
+                        # Also remove "o " if present after the dash
+                        if line.startswith('o '):
+                            line = line[2:]
+                elif line.startswith('- '):
+                    line = line[2:]
+                elif line.startswith('o '):
+                    line = line[2:]
+                
+                if line and len(line) > 20:
                     recommendations.append(line)
             
+            print(f"DEBUG: Parsed {len(recommendations)} goal-specific recommendations")
             return recommendations[:5] if recommendations else self._get_fallback_recommendations()
             
         except Exception as e:
@@ -380,22 +538,48 @@ class LLMService:
     def _generate_general_recommendations(self, risk_profile: str) -> List[str]:
         """Generate general financial recommendations"""
         try:
+            print(f"DEBUG: Generating general recommendations for risk profile: {risk_profile}")
             system_prompt = (
                 "You are a financial advisor. Provide 5 general financial recommendations "
-                "based on the user's risk profile. Be practical and actionable."
+                "based on the user's risk profile. Be practical and actionable. "
+                "IMPORTANT: Do not include numbering (1., 2., etc.) in your response. "
+                "Each recommendation should be on a separate line without any numbering."
             )
             
             user_prompt = f"Provide general financial recommendations for someone with a {risk_profile} risk profile."
             
+            print(f"DEBUG: Making LLM request for general recommendations")
             response_text = self._make_llm_request(system_prompt, user_prompt)
+            print(f"DEBUG: LLM response received: {response_text[:100]}...")
             
             # Parse recommendations
             recommendations = []
             for line in response_text.split('\n'):
                 line = line.strip()
-                if line and not line.startswith('#') and len(line) > 20:
+                if not line or line.startswith('#'):
+                    continue
+                
+                # Clean up formatting (remove numbering, bullets, etc.)
+                if line[0].isdigit() and ('.' in line[:3] or ')' in line[:3] or '-' in line[:3]):
+                    # Remove numbering (e.g., "1) ", "1. ", "1- ")
+                    if '. ' in line[:3]:
+                        line = line.split('. ', 1)[1]
+                    elif ') ' in line[:3]:
+                        line = line.split(') ', 1)[1]
+                    elif '- ' in line[:3]:
+                        line = line.split('- ', 1)[1]
+                        # Also remove "o " if present after the dash
+                        if line.startswith('o '):
+                            line = line[2:]
+                elif line.startswith('- '):
+                    line = line[2:]
+                elif line.startswith('o '):
+                    line = line[2:]
+                
+                if line and len(line) > 20:
                     recommendations.append(line)
             
+            print(f"DEBUG: Parsed {len(recommendations)} recommendations")
             return recommendations[:5] if recommendations else self._get_fallback_recommendations()
             
         except Exception as e:
@@ -456,9 +640,10 @@ class LLMService:
     
     def _get_fallback_recommendations(self) -> List[str]:
         """Fallback recommendations when LLM is not available"""
+        print("WARNING: Using fallback recommendations - LLM may not be available")
         return [
             "Consider increasing your monthly savings by 5-10% to accelerate goal achievement",
-            "Review your spending categories to identify areas for cost reduction",
+            "Review your spending categories to identify areas for cost reduction", 
             "Set up automatic transfers to your savings account on payday",
             "Consider diversifying your investments based on your risk tolerance",
             "Regularly review and adjust your goals based on life changes"

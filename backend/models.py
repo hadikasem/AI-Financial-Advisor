@@ -239,3 +239,29 @@ class Notification(db.Model):
             'sent_push': self.sent_push,
             'created_at': self.created_at.isoformat()
         }
+
+class Recommendation(db.Model):
+    __tablename__ = 'recommendations'
+    
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False)
+    goal_id = db.Column(db.String(36), db.ForeignKey('goals.id'), nullable=True)
+    recommendations = db.Column(db.JSON, nullable=False)  # List of recommendation strings
+    context_data = db.Column(db.JSON, nullable=True)  # Store the context used to generate recommendations
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = db.relationship('User', backref='recommendations')
+    goal = db.relationship('Goal', backref='recommendations')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'goal_id': self.goal_id,
+            'recommendations': self.recommendations,
+            'context_data': self.context_data,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }

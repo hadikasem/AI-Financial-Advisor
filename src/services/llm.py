@@ -120,7 +120,9 @@ class RecommendationProvider:
             system_prompt = (
                 "You are a concise financial coach. Based on the snapshot, "
                 "give 3-5 actionable, safe, specific suggestions (amounts/percentages/dates "
-                "where possible). No promises, no market timing. Each item ≤ 2 lines."
+                "where possible). No promises, no market timing. Each item ≤ 2 lines. "
+                "IMPORTANT: Format each recommendation as a simple line without numbering, "
+                "bullets, or special characters. Just plain text recommendations."
             )
             
             user_content = f"Financial snapshot: {json.dumps(snapshot_data, indent=2)}"
@@ -155,16 +157,23 @@ class RecommendationProvider:
             if not line:
                 continue
             
-            # Look for lines starting with numbers or "- "
-            if (line[0].isdigit() and ('.' in line[:3] or ')' in line[:3])) or line.startswith('- '):
+            # Look for lines starting with numbers or "- " or "o "
+            if (line[0].isdigit() and ('.' in line[:3] or ')' in line[:3] or '-' in line[:3])) or line.startswith('- ') or line.startswith('o '):
                 # Clean up the line
                 if line[0].isdigit():
-                    # Remove numbering (e.g., "1) " or "1. ")
+                    # Remove numbering (e.g., "1) ", "1. ", "1- ")
                     if '. ' in line[:3]:
                         line = line.split('. ', 1)[1]
                     elif ') ' in line[:3]:
                         line = line.split(') ', 1)[1]
+                    elif '- ' in line[:3]:
+                        line = line.split('- ', 1)[1]
+                        # Also remove "o " if present after the dash
+                        if line.startswith('o '):
+                            line = line[2:]
                 elif line.startswith('- '):
+                    line = line[2:]
+                elif line.startswith('o '):
                     line = line[2:]
                 
                 if line.strip():
