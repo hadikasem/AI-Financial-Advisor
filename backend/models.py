@@ -21,6 +21,7 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
     is_active = db.Column(db.Boolean, default=True)
+    last_mock_date = db.Column(db.Date, nullable=True)  # Track last simulated month for mock data
     
     # Relationships
     assessments = db.relationship('Assessment', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -38,7 +39,8 @@ class User(db.Model):
             'phone': self.phone,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None,
-            'is_active': self.is_active
+            'is_active': self.is_active,
+            'last_mock_date': self.last_mock_date.isoformat() if self.last_mock_date else None
         }
 
 class Assessment(db.Model):

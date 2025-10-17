@@ -167,3 +167,72 @@ class GoalService:
             "Car Purchase (New or used vehicle)",
             "Investment Portfolio (Diversified assets)"
         ]
+    
+    def check_goal_completion_status(self, goal: Goal, simulated_current_date: date = None) -> Dict[str, Any]:
+        """Check if goal is completed or target date reached"""
+        if simulated_current_date is None:
+            simulated_current_date = date.today()
+        
+        # Check if goal is already completed
+        if goal.status == 'completed':
+            return {
+                'status': 'completed',
+                'message': 'Goal already completed',
+                'goal': goal.to_dict()
+            }
+        
+        # Check if target amount is reached
+        if goal.current_amount >= goal.target_amount:
+            # Mark as completed
+            goal.status = 'completed'
+            goal.updated_at = datetime.utcnow()
+            db.session.commit()
+            
+            # Calculate how early it was completed
+            days_early = (goal.target_date - simulated_current_date).days
+            return {
+                'status': 'completed',
+                'message': f'Congratulations! You achieved your goal {abs(days_early)} days early!',
+                'days_early': days_early,
+                'goal': goal.to_dict()
+            }
+        
+        # Check if target date is reached but amount not achieved
+        if simulated_current_date >= goal.target_date:
+            remaining_amount = float(goal.target_amount) - float(goal.current_amount)
+            return {
+                'status': 'target_date_reached',
+                'message': f'Target date reached but goal not completed. You still need ${remaining_amount:,.2f}',
+                'remaining_amount': remaining_amount,
+                'goal': goal.to_dict()
+            }
+        
+        # Goal is still active
+        return {
+            'status': 'active',
+            'message': 'Goal is still in progress',
+            'goal': goal.to_dict()
+        }
+    
+    def extend_goal_target_date(self, user_id: str, goal_id: str, new_target_date: date) -> Dict[str, Any]:
+        """Extend the target date for a goal"""
+        goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+        
+        if not goal:
+            raise ValueError("Goal not found")
+        
+        if goal.status != 'active':
+            raise ValueError("Only active goals can be extended")
+        
+        if new_target_date <= goal.target_date:
+            raise ValueError("New target date must be after current target date")
+        
+        # Update the goal
+        goal.target_date = new_target_date
+        goal.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return {
+            'message': 'Goal target date extended successfully',
+            'goal': goal.to_dict()
+        }

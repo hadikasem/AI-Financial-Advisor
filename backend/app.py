@@ -24,7 +24,7 @@ app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'jwt-secret-string')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
 
 # Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://username:password@localhost/risk_agent_db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://risk_agent_user:risk_agent_password@localhost/risk_agent_db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Import models first to get the db instance
@@ -39,15 +39,15 @@ CORS(app)
 # Import services
 from services.assessment_service import AssessmentService
 from services.goal_service import GoalService
-from services.progress_service import ProgressService
 from services.notification_service import NotificationService
 from services.llm_service import LLMService
+from services.mock_progress_service import MockProgressService
 
 # Initialize services
 assessment_service = AssessmentService()
 goal_service = GoalService()
-progress_service = ProgressService()
 notification_service = NotificationService()
+mock_progress_service = MockProgressService()
 # Initialize LLM service lazily to avoid database context issues
 llm_service = None
 
@@ -534,14 +534,106 @@ def delete_goal(goal_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/progress/update', methods=['POST'])
+@app.route('/api/goals/<goal_id>/status', methods=['GET'])
 @jwt_required()
-def update_progress():
+def get_goal_status(goal_id):
+    """Get goal completion status"""
     try:
         user_id = get_jwt_identity()
         
-        # Update progress with smart time-based simulation
-        result = progress_service.update_progress(user_id)
+        # Get the goal
+        goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+        if not goal:
+            return jsonify({'error': 'Goal not found'}), 404
+        
+        # Get simulated current date from user's last_mock_date
+        user = User.query.get(user_id)
+        simulated_current_date = user.last_mock_date if user and user.last_mock_date else date.today()
+        
+        # Check goal completion status
+        status = goal_service.check_goal_completion_status(goal, simulated_current_date)
+        
+        return jsonify(status), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/goals/<goal_id>/extend', methods=['POST'])
+@jwt_required()
+def extend_goal(goal_id):
+    """Extend goal target date"""
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        if not data.get('new_target_date'):
+            return jsonify({'error': 'new_target_date is required'}), 400
+        
+        # Parse target date
+        if isinstance(data['new_target_date'], str):
+            new_target_date = datetime.fromisoformat(data['new_target_date']).date()
+        else:
+            new_target_date = data['new_target_date']
+        
+        # Extend goal
+        result = goal_service.extend_goal_target_date(user_id, goal_id, new_target_date)
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/progress/mock-update', methods=['POST'])
+@jwt_required()
+def mock_update_progress():
+    """Update progress using mock data simulation"""
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json() or {}
+        
+        # Get months to simulate from request (default to 1)
+        months_to_simulate = data.get('months_to_simulate', 1)
+        
+        # Validate months_to_simulate
+        if months_to_simulate not in [1, 3, 6, 12]:
+            return jsonify({'error': 'months_to_simulate must be 1, 3, 6, or 12'}), 400
+        
+        # Update progress with mock data
+        result = mock_progress_service.update_progress(user_id, months_to_simulate)
+        
+        if result.get('success'):
+            return jsonify(result), 200
+        else:
+            return jsonify(result), 400
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/progress/summary', methods=['GET'])
+@jwt_required()
+def get_progress_summary():
+    """Get user's progress summary including mock tracking info"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Get progress summary
+        summary = mock_progress_service.get_user_progress_summary(user_id)
+        
+        return jsonify(summary), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/progress/can-generate', methods=['GET'])
+@jwt_required()
+def can_generate_progress():
+    """Check if more mock progress data can be generated"""
+    try:
+        user_id = get_jwt_identity()
+        months_to_simulate = int(request.args.get('months', 1))
+        
+        # Check if more data can be generated
+        result = mock_progress_service.can_generate_more_data(user_id, months_to_simulate)
         
         return jsonify(result), 200
         
@@ -554,8 +646,55 @@ def get_progress(goal_id):
     try:
         user_id = get_jwt_identity()
         
-        # Get progress for specific goal
-        progress = progress_service.get_progress(user_id, goal_id)
+        # Get progress for specific goal using mock progress service
+        from models import Goal, ProgressSnapshot
+        from datetime import datetime, date
+        
+        # Get the goal
+        goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+        if not goal:
+            return jsonify({'error': 'Goal not found'}), 404
+        
+        # Get the latest progress snapshot
+        latest_snapshot = ProgressSnapshot.query.filter_by(
+            user_id=user_id, 
+            goal_id=goal_id
+        ).order_by(ProgressSnapshot.as_of.desc()).first()
+        
+        if latest_snapshot:
+            progress = {
+                'current_amount': float(latest_snapshot.current_amount),
+                'target_amount': float(latest_snapshot.target_amount),
+                'progress_pct': latest_snapshot.progress_pct,
+                'days_remaining': latest_snapshot.kpis.get('days_remaining', 0),
+                'pacing_status': latest_snapshot.pacing_status,
+                'pacing_detail': latest_snapshot.pacing_detail,
+                'weekly_net_savings': float(latest_snapshot.weekly_net_savings) if latest_snapshot.weekly_net_savings else 0,
+                'savings_rate_30d': float(latest_snapshot.savings_rate_30d) if latest_snapshot.savings_rate_30d else 0
+            }
+        else:
+            # No snapshot yet, return basic goal info using simulated current date
+            user = User.query.get(user_id)
+            simulated_current_date = user.last_mock_date if user and user.last_mock_date else date.today()
+            days_remaining = (goal.target_date - simulated_current_date).days
+            
+            # Calculate progress percentage with proper capping
+            if goal.target_amount > 0:
+                progress_pct = float(goal.current_amount) / float(goal.target_amount) * 100
+                progress_pct = min(100.0, progress_pct)  # Cap at 100%
+            else:
+                progress_pct = 0.0
+            
+            progress = {
+                'current_amount': float(goal.current_amount),
+                'target_amount': float(goal.target_amount),
+                'progress_pct': progress_pct,
+                'days_remaining': days_remaining,
+                'pacing_status': 'unknown',
+                'pacing_detail': 'No progress data available yet',
+                'weekly_net_savings': 0,
+                'savings_rate_30d': 0
+            }
         
         return jsonify({'progress': progress}), 200
         
