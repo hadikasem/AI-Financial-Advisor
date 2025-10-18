@@ -200,6 +200,9 @@ st.markdown("""
         font-weight: bold;
         color: white;
     }
+    .button-align {
+        margin-top: 1.5rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -788,7 +791,9 @@ def goals_page():
                 
                 # Progress bar
                 progress_pct = (goal['current_amount'] / goal['target_amount']) * 100
-                st.progress(progress_pct / 100)
+                # Cap progress at 100% for Streamlit compatibility
+                progress_value = min(1.0, progress_pct / 100)
+                st.progress(progress_value)
                 st.write(f"Progress: {progress_pct:.1f}%")
                 
                 col1, col2 = st.columns([3, 1])
@@ -914,6 +919,18 @@ def display_goal_completion_message(goal_status: dict, goal: dict, simulated_unt
     # Success message with celebration
     st.success("🎉 **GOAL COMPLETED!** 🎉")
     
+    # Get progress data to calculate days remaining
+    from datetime import datetime, date
+    if simulated_until_date:
+        try:
+            simulated_date = datetime.fromisoformat(simulated_until_date).date()
+            target_date = datetime.fromisoformat(goal['target_date']).date()
+            days_remaining = (target_date - simulated_date).days
+        except:
+            days_remaining = 0
+    else:
+        days_remaining = 0
+    
     # Display achievement summary stats
     st.markdown("### 🏆 Achievement Summary")
     
@@ -933,18 +950,9 @@ def display_goal_completion_message(goal_status: dict, goal: dict, simulated_unt
         **Achievement Stats:**
         - **Current Amount:** ${goal['current_amount']:,.2f}
         - **Simulated Until:** {simulated_until_date if simulated_until_date else 'Current simulation date'}
-        - **Completed:** {abs(goal_status.get('days_early', 0))} days early! ⏰
+        - **Completed:** {days_remaining} days early! ⏰
         - **Status:** Target exceeded! 🚀
         """)
-    
-    # Show progress bars for completed goal
-    if simulated_until_date:
-        st.markdown("### 📊 Final Progress")
-        date_progress_html = create_date_progress_bar(goal, simulated_until_date)
-        st.markdown(date_progress_html, unsafe_allow_html=True)
-        
-        amount_progress_html = create_amount_progress_bar(goal, goal['current_amount'], True)
-        st.markdown(amount_progress_html, unsafe_allow_html=True)
     
     # Celebration animation or additional message
     st.balloons()
@@ -1064,20 +1072,11 @@ def display_completed_goal_summary(goal: dict, token: str):
         - **Progress:** 100.0%
         """)
     
-    # Show progress bars for completed goal
-    if simulated_until_date:
-        st.markdown("### 📊 Final Progress")
-        date_progress_html = create_date_progress_bar(goal, simulated_until_date)
-        st.markdown(date_progress_html, unsafe_allow_html=True)
-        
-        amount_progress_html = create_amount_progress_bar(goal, goal['current_amount'], True)
-        st.markdown(amount_progress_html, unsafe_allow_html=True)
-    
     st.markdown("---")
 
 def display_goal_with_progress(goal: dict, token: str):
     """Display active goal with progress tracking"""
-    st.subheader(f"📊 {goal['name']}")
+    st.markdown(f"## 🎯 {goal['name']}")
     
     # Get progress for this goal
     progress_response = make_api_request(f"/progress/{goal['id']}", token=token)
@@ -1093,7 +1092,7 @@ def display_goal_with_progress(goal: dict, token: str):
     simulated_until_date = progress_summary.get('last_mock_date')
     
     # Display progress bars at the top (always visible)
-    st.markdown("### 📊 Progress Visualization")
+    st.markdown("#### 📊 Progress Visualization")
     
     # Always show progress bars (use goal start date as fallback for simulated_until_date)
     if simulated_until_date:
@@ -1109,13 +1108,6 @@ def display_goal_with_progress(goal: dict, token: str):
     st.markdown(amount_progress_html, unsafe_allow_html=True)
     
     if progress:
-        # Display goal dates
-        col_date1, col_date2 = st.columns(2)
-        with col_date1:
-            st.info(f"📅 **Start Date:** {goal['start_date']}")
-        with col_date2:
-            st.info(f"🎯 **Target Date:** {goal['target_date']}")
-        
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -1263,33 +1255,29 @@ def dashboard_page():
     progress_summary_response = make_api_request("/progress/summary", token=token)
     progress_summary = progress_summary_response if progress_summary_response else {}
     
-    # Display progress tracking info
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        progress_until = progress_summary.get('last_mock_date')
-        if progress_until is None:
-            # Get the earliest goal start date as default
-            goals_response = make_api_request("/goals", token=token)
-            goals = goals_response.get('goals', []) if goals_response else []
-            if goals:
-                # Find the earliest start date among all goals
-                earliest_start_date = min(goal['start_date'] for goal in goals)
-                progress_until = earliest_start_date
-            else:
-                progress_until = 'No goals created'
-        st.metric("Simulated Until", progress_until)
-    with col2:
-        total_goals = progress_summary.get('total_goals', 0)
-        st.metric("Total Goals", total_goals)
-    with col3:
-        overall_progress = progress_summary.get('overall_progress', 0)
-        st.metric("Overall Progress", f"{overall_progress:.1f}%")
-    
     # Simulation controls
     st.markdown("---")
     
-    col1, col2 = st.columns([1, 2])
+    # Get simulated until date for display
+    progress_until = progress_summary.get('last_mock_date')
+    if progress_until is None:
+        # Get the earliest goal start date as default
+        goals_response = make_api_request("/goals", token=token)
+        goals = goals_response.get('goals', []) if goals_response else []
+        if goals:
+            # Find the earliest start date among all goals
+            earliest_start_date = min(goal['start_date'] for goal in goals)
+            progress_until = earliest_start_date
+        else:
+            progress_until = 'No goals created'
+    
+    # Layout: Simulated Until | Months to simulate | Simulate Progress button
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
     with col1:
+        st.metric("Simulated Until", progress_until)
+    
+    with col2:
         # Months to simulate dropdown
         months_to_simulate = st.selectbox(
             "Months to simulate per click", 
@@ -1298,7 +1286,7 @@ def dashboard_page():
             help="Select how many months of mock data to generate with each click"
         )
     
-    with col2:
+    with col3:
         # Check if any goal is completed to disable the button
         goals_response = make_api_request("/goals", token=token)
         goals = goals_response.get('goals', []) if goals_response else []
@@ -1316,6 +1304,7 @@ def dashboard_page():
         button_disabled = any_goal_completed
         button_text = "🎉 Goal Completed!" if any_goal_completed else "🔄 Simulate Progress"
         
+        st.markdown('<div class="button-align">', unsafe_allow_html=True)
         if st.button(button_text, type="primary", use_container_width=True, disabled=button_disabled):
             with st.spinner("Generating mock transactions and updating progress..."):
                 # Update progress with mock data
@@ -1369,6 +1358,7 @@ def dashboard_page():
                     st.error(f"❌ Failed to update progress: {message}")
                     if suggestion:
                         st.info(f"💡 {suggestion}")
+        st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown("---")
     
@@ -1448,13 +1438,13 @@ def dashboard_page():
     
     # Display active goals first
     if active_goals:
-        st.markdown("### 📊 Active Goals")
+        st.markdown("### 🪜 Active Goals")
         for goal in active_goals:
             display_goal_with_progress(goal, token)
     
     # Display completed goals in separate section with same visual elements
     if completed_goals:
-        st.markdown("### 🏆 Completed Goals")
+        st.markdown("# 🏆 Completed Goals")
         for goal in completed_goals:
             display_goal_with_progress(goal, token)
 
