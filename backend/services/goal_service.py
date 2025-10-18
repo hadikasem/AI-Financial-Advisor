@@ -11,8 +11,8 @@ class GoalService:
         self.predefined_categories = [category.value for category in GoalCategory]
     
     def get_user_goals(self, user_id: str) -> List[Dict[str, Any]]:
-        """Get all active goals for a user"""
-        goals = Goal.query.filter_by(user_id=user_id, status='active').all()
+        """Get all goals for a user (both active and completed)"""
+        goals = Goal.query.filter_by(user_id=user_id).filter(Goal.status.in_(['active', 'completed'])).all()
         return [goal.to_dict() for goal in goals]
     
     def create_goal(self, user_id: str, goal_data: Dict[str, Any]) -> Dict[str, Any]:

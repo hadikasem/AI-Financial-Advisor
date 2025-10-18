@@ -6,7 +6,7 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import os
 from dotenv import load_dotenv
 import json
@@ -546,14 +546,11 @@ def get_goal_status(goal_id):
         if not goal:
             return jsonify({'error': 'Goal not found'}), 404
         
-        # Get simulated current date from user's last_mock_date
-        user = User.query.get(user_id)
-        simulated_current_date = user.last_mock_date if user and user.last_mock_date else date.today()
-        
-        # Check goal completion status
-        status = goal_service.check_goal_completion_status(goal, simulated_current_date)
-        
-        return jsonify(status), 200
+        # Return the current status from the database
+        return jsonify({
+            'status': goal.status,
+            'goal': goal.to_dict()
+        }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

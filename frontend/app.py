@@ -1150,17 +1150,18 @@ def display_goal_with_progress(goal: dict, token: str):
         elif pacing_status == 'behind':
             st.warning(f"⚠️ {pacing_detail}")
         
-        # Get recommendations
-        recommendations_response = make_api_request(f"/recommendations?goal_id={goal['id']}", token=token)
-        
-        if recommendations_response and 'error' in recommendations_response:
-            st.error(f"❌ {recommendations_response['error']}")
-            st.info("Please check your LLM configuration.")
-        elif recommendations_response and recommendations_response.get('recommendations'):
-            recommendations = recommendations_response['recommendations']
-            st.subheader("💡 Recommendations")
-            for recommendation in recommendations:
-                st.info(f"💡 {recommendation}")
+        # Get recommendations - only show if goal is not completed
+        if goal_status.get('status') != 'completed':
+            recommendations_response = make_api_request(f"/recommendations?goal_id={goal['id']}", token=token)
+            
+            if recommendations_response and 'error' in recommendations_response:
+                st.error(f"❌ {recommendations_response['error']}")
+                st.info("Please check your LLM configuration.")
+            elif recommendations_response and recommendations_response.get('recommendations'):
+                recommendations = recommendations_response['recommendations']
+                st.subheader("💡 Recommendations")
+                for recommendation in recommendations:
+                    st.info(f"💡 {recommendation}")
     
     st.markdown("---")
 
@@ -1445,108 +1446,17 @@ def dashboard_page():
                 st.rerun()
         return
     
-    # Display completed goals first if any
-    if completed_goals:
-        st.markdown("### 🏆 Completed Goals")
-        for goal in completed_goals:
-            display_completed_goal_summary(goal, token)
-    
-    # Display active goals
+    # Display active goals first
     if active_goals:
         st.markdown("### 📊 Active Goals")
         for goal in active_goals:
             display_goal_with_progress(goal, token)
-    elif completed_goals:
-        # All goals are completed, show completion message
-        st.success("🎉 All your goals have been completed! Congratulations!")
-        st.subheader(f"📊 {goal['name']}")
-        
-        # Get progress for this goal
-        progress_response = make_api_request(f"/progress/{goal['id']}", token=token)
-        progress = progress_response.get('progress', {}) if progress_response else {}
-        
-        # Get goal completion status
-        status_response = make_api_request(f"/goals/{goal['id']}/status", token=token)
-        goal_status = status_response if status_response else {}
-        
-        # Get simulated until date for progress bars
-        progress_summary_response = make_api_request("/progress/summary", token=token)
-        progress_summary = progress_summary_response if progress_summary_response else {}
-        simulated_until_date = progress_summary.get('last_mock_date')
-        
-        # Display progress bars at the top (always visible)
-        st.markdown("### 📊 Progress Visualization")
-        
-        # Always show progress bars (use goal start date as fallback for simulated_until_date)
-        if simulated_until_date:
-            date_progress_html = create_date_progress_bar(goal, simulated_until_date)
-        else:
-            # Use goal start date as fallback
-            date_progress_html = create_date_progress_bar(goal, goal['start_date'])
-        st.markdown(date_progress_html, unsafe_allow_html=True)
-        
-        # Amount progress bar
-        is_completed = goal_status.get('status') == 'completed'
-        amount_progress_html = create_amount_progress_bar(goal, progress.get('current_amount', 0), is_completed)
-        st.markdown(amount_progress_html, unsafe_allow_html=True)
-        
-        if progress:
-            # Display goal dates
-            col_date1, col_date2 = st.columns(2)
-            with col_date1:
-                st.info(f"📅 **Start Date:** {goal['start_date']}")
-            with col_date2:
-                st.info(f"🎯 **Target Date:** {goal['target_date']}")
-            
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Current Amount", f"${progress.get('current_amount', 0):,.2f}")
-            with col2:
-                st.metric("Target Amount", f"${progress.get('target_amount', 0):,.2f}")
-            with col3:
-                progress_pct = progress.get('progress_pct', 0)
-                # Ensure progress stays at 100% for completed goals
-                if goal_status.get('status') == 'completed':
-                    progress_pct = 100.0
-                st.metric("Progress", f"{progress_pct:.1f}%")
-            with col4:
-                days_remaining = progress.get('days_remaining', 0)
-                st.metric("Days Remaining", days_remaining)
-            
-            # Check goal completion status and display appropriate message
-            if goal_status.get('status') == 'completed':
-                display_goal_completion_message(goal_status, goal, simulated_until_date)
-            elif goal_status.get('status') == 'target_date_reached':
-                display_target_date_reached_message(goal_status, goal, token, simulated_until_date)
-            
-            
-            # Pacing status
-            pacing_status = progress.get('pacing_status', 'unknown')
-            pacing_detail = progress.get('pacing_detail', '')
-            
-            if pacing_status == 'ahead':
-                st.success(f"🎉 {pacing_detail}")
-            elif pacing_status == 'on_track':
-                st.info(f"✅ {pacing_detail}")
-            elif pacing_status == 'behind':
-                st.warning(f"⚠️ {pacing_detail}")
-            
-            # Get recommendations
-            recommendations_response = make_api_request(f"/recommendations?goal_id={goal['id']}", token=token)
-            
-            if recommendations_response and 'error' in recommendations_response:
-                st.error(f"❌ {recommendations_response['error']}")
-                st.info("Please check your LLM configuration.")
-            elif recommendations_response and recommendations_response.get('recommendations'):
-                recommendations = recommendations_response['recommendations']
-                st.subheader("💡 Recommendations")
-                for i, rec in enumerate(recommendations, 1):
-                    st.write(f"{i}. {rec}")
-            else:
-                st.error("❌ Unable to load recommendations. Please check your LLM configuration.")
-        
-        st.divider()
+    
+    # Display completed goals in separate section with same visual elements
+    if completed_goals:
+        st.markdown("### 🏆 Completed Goals")
+        for goal in completed_goals:
+            display_goal_with_progress(goal, token)
 
 def notifications_page():
     """Notifications page"""

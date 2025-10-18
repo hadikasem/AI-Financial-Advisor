@@ -84,16 +84,8 @@ class MockProgressService:
             updated_goals = []
             simulated_current_date = user.last_mock_date
             
-            # Import goal service to check completion status
-            from .goal_service import GoalService
-            goal_service = GoalService()
-            
             for goal in goals:
                 updated_goal = self._recalculate_goal_progress(goal, simulated_current_date)
-                
-                # Check goal completion status
-                completion_status = goal_service.check_goal_completion_status(updated_goal, simulated_current_date)
-                
                 updated_goals.append(updated_goal)
             
             # Create progress snapshot using simulated current date
@@ -243,6 +235,7 @@ class MockProgressService:
         # Mark as completed if target reached
         if progress_pct >= 100:
             goal.status = 'completed'
+            goal.updated_at = datetime.utcnow()
         
         return goal
     
