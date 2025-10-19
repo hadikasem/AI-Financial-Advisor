@@ -97,6 +97,9 @@ class Goal(db.Model):
     start_amount = db.Column(db.Numeric(15, 2), default=0.0)
     start_date = db.Column(db.Date, default=date.today)
     current_amount = db.Column(db.Numeric(15, 2), default=0.0)
+    account_id = db.Column(db.String(36), db.ForeignKey('accounts.id'), nullable=True)  # Link to goal's account
+    last_simulation_date = db.Column(db.Date, nullable=True)  # Track simulation progress
+    completed_at = db.Column(db.DateTime, nullable=True)  # When goal was completed
     status = db.Column(db.String(20), default='active')  # active, completed, paused, deleted
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -116,7 +119,39 @@ class Goal(db.Model):
             'start_amount': float(self.start_amount),
             'start_date': self.start_date.isoformat(),
             'current_amount': float(self.current_amount),
+            'account_id': self.account_id,
+            'last_simulation_date': self.last_simulation_date.isoformat() if self.last_simulation_date else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'status': self.status,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+        }
+
+class GoalAccount(db.Model):
+    __tablename__ = 'goal_accounts'
+    
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    goal_id = db.Column(db.String(36), db.ForeignKey('goals.id'), nullable=False)
+    account_name = db.Column(db.String(100), nullable=False)
+    current_balance = db.Column(db.Numeric(15, 2), default=0.0)
+    transactions = db.Column(db.JSON, default=list)
+    simulation_history = db.Column(db.JSON, default=list)
+    last_simulation_date = db.Column(db.Date)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    goal = db.relationship('Goal', backref='goal_account')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'goal_id': self.goal_id,
+            'account_name': self.account_name,
+            'current_balance': float(self.current_balance),
+            'transactions': self.transactions or [],
+            'simulation_history': self.simulation_history or [],
+            'last_simulation_date': self.last_simulation_date.isoformat() if self.last_simulation_date else None,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat()
         }

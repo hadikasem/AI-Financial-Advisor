@@ -1,6 +1,6 @@
 # Goal Service for Goal Management
 
-from models import db, User, Goal, GoalCategory
+from models import db, User, Goal, GoalCategory, Account
 from datetime import datetime, date
 import json
 import uuid
@@ -41,6 +41,22 @@ class GoalService:
         )
         
         db.session.add(goal)
+        db.session.flush()  # Get the goal ID before creating account
+        
+        # Create account for this goal
+        account = Account(
+            account_name=f"Goal: {goal_data['name']}",
+            account_type="Goal Account",
+            balance=0.0,
+            user_id=user_id
+        )
+        
+        db.session.add(account)
+        db.session.flush()  # Get the account ID
+        
+        # Link goal to account (store account_id in goal for easy reference)
+        goal.account_id = account.id
+        
         db.session.commit()
         
         return goal.to_dict()
@@ -51,6 +67,12 @@ class GoalService:
         
         if not goal:
             raise ValueError("Goal not found")
+        
+        # Delete the associated account
+        if goal.account_id:
+            account = Account.query.get(goal.account_id)
+            if account:
+                db.session.delete(account)
         
         goal.status = 'deleted'
         goal.updated_at = datetime.utcnow()

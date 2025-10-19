@@ -792,6 +792,126 @@ def get_goal_categories():
     categories = [category.value for category in GoalCategory]
     return jsonify({'categories': categories}), 200
 
+# Goal-specific account endpoints
+@app.route('/api/goals/<goal_id>/account', methods=['GET'])
+@jwt_required()
+def get_goal_account(goal_id):
+    """Get goal-specific account details"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Verify goal belongs to user
+        goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+        if not goal:
+            return jsonify({'error': 'Goal not found'}), 404
+        
+        from services.goal_simulation_service import GoalSimulationService
+        goal_simulation_service = GoalSimulationService()
+        
+        account = goal_simulation_service.get_goal_account(goal_id)
+        if not account:
+            return jsonify({'error': 'Goal account not found'}), 404
+        
+        return jsonify({'account': account}), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/goals/<goal_id>/transactions', methods=['GET'])
+@jwt_required()
+def get_goal_transactions(goal_id):
+    """Get transactions for a specific goal"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Verify goal belongs to user
+        goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+        if not goal:
+            return jsonify({'error': 'Goal not found'}), 404
+        
+        from services.goal_simulation_service import GoalSimulationService
+        goal_simulation_service = GoalSimulationService()
+        
+        transactions = goal_simulation_service.get_goal_transactions(goal_id)
+        
+        return jsonify({'transactions': transactions}), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/goals/<goal_id>/simulate', methods=['POST'])
+@jwt_required()
+def simulate_goal_progress(goal_id):
+    """Simulate progress for a specific goal only"""
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        # Verify goal belongs to user
+        goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+        if not goal:
+            return jsonify({'error': 'Goal not found'}), 404
+        
+        months_to_simulate = data.get('months_to_simulate', 1)
+        
+        from services.goal_simulation_service import GoalSimulationService
+        goal_simulation_service = GoalSimulationService()
+        
+        result = goal_simulation_service.simulate_goal_progress(goal_id, months_to_simulate)
+        
+        return jsonify(result), 200
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/goals/<goal_id>/dashboard', methods=['GET'])
+@jwt_required()
+def get_goal_dashboard(goal_id):
+    """Get dashboard data for a specific goal"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Verify goal belongs to user
+        goal = Goal.query.filter_by(id=goal_id, user_id=user_id).first()
+        if not goal:
+            return jsonify({'error': 'Goal not found'}), 404
+        
+        from services.goal_simulation_service import GoalSimulationService
+        goal_simulation_service = GoalSimulationService()
+        
+        dashboard_data = goal_simulation_service.get_goal_dashboard_data(goal_id)
+        
+        return jsonify(dashboard_data), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/goals/ongoing', methods=['GET'])
+@jwt_required()
+def get_ongoing_goals():
+    """Get all active goals for a user"""
+    try:
+        user_id = get_jwt_identity()
+        goals = Goal.query.filter_by(user_id=user_id, status='active').all()
+        
+        return jsonify({'goals': [goal.to_dict() for goal in goals]}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/goals/completed', methods=['GET'])
+@jwt_required()
+def get_completed_goals():
+    """Get all completed goals for a user"""
+    try:
+        user_id = get_jwt_identity()
+        goals = Goal.query.filter_by(user_id=user_id, status='completed').all()
+        
+        return jsonify({'goals': [goal.to_dict() for goal in goals]}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/notifications', methods=['GET'])
 @jwt_required()
 def get_notifications():
