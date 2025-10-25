@@ -42,6 +42,7 @@ from services.goal_service import GoalService
 from services.notification_service import NotificationService
 from services.llm_service import LLMService
 from services.mock_progress_service import MockProgressService
+from services.gamification_service import GamificationService
 
 # Initialize services
 assessment_service = AssessmentService()
@@ -940,6 +941,97 @@ def mark_notification_read(notification_id):
         db.session.commit()
         
         return jsonify({'message': 'Notification marked as read'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Gamification endpoints
+@app.route('/api/gamification/data', methods=['GET'])
+@jwt_required()
+def get_gamification_data():
+    """Get user's gamification data"""
+    try:
+        user_id = get_jwt_identity()
+        gamification_service = GamificationService()
+        result = gamification_service.get_user_gamification_data(user_id)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify({'error': result['error']}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/gamification/update-streak', methods=['POST'])
+@jwt_required()
+def update_streak():
+    """Update user's streak"""
+    try:
+        user_id = get_jwt_identity()
+        gamification_service = GamificationService()
+        result = gamification_service.update_streak(user_id)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify({'error': result['error']}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/gamification/check-milestones', methods=['POST'])
+@jwt_required()
+def check_milestones():
+    """Check for new milestones"""
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        goal_amount = data.get('goal_amount', 0)
+        
+        gamification_service = GamificationService()
+        result = gamification_service.check_milestones(user_id, goal_amount)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify({'error': result['error']}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/gamification/leaderboard', methods=['GET'])
+@jwt_required()
+def get_leaderboard():
+    """Get leaderboard"""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        gamification_service = GamificationService()
+        result = gamification_service.get_leaderboard(limit)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify({'error': result['error']}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/goals/personalized-advice', methods=['POST'])
+@jwt_required()
+def get_personalized_advice():
+    """Generate personalized financial advice for a goal"""
+    try:
+        user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        # Get LLM service
+        llm_service = LLMService()
+        
+        # Generate personalized advice
+        advice = llm_service.generate_personalized_advice(user_id, data)
+        
+        return jsonify({'advice': advice}), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

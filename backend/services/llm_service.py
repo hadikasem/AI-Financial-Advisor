@@ -298,7 +298,7 @@ class LLMService:
                     context_data = {
                         'goal_id': goal_id,
                         'goal_name': goal.name,
-                        'progress_pct': progress.progress_pct,
+                        'progress_pct': float(progress.progress_pct),
                         'pacing_status': progress.pacing_status,
                         'risk_profile': risk_profile
                     }
@@ -364,7 +364,7 @@ class LLMService:
                     context_data = {
                         'goal_id': goal_id,
                         'goal_name': goal.name,
-                        'progress_pct': progress.progress_pct,
+                        'progress_pct': float(progress.progress_pct),
                         'pacing_status': progress.pacing_status,
                         'risk_profile': risk_profile
                     }
@@ -474,7 +474,7 @@ class LLMService:
     def _generate_goal_specific_recommendations(self, goal, progress, risk_profile: str) -> List[str]:
         """Generate recommendations specific to a goal's progress"""
         try:
-            print(f"DEBUG: Generating goal-specific recommendations for goal: {goal.name}, progress: {progress.progress_pct}%, risk: {risk_profile}")
+            print(f"DEBUG: Generating goal-specific recommendations for goal: {goal.name}, progress: {float(progress.progress_pct)}%, risk: {risk_profile}")
             system_prompt = (
                 "You are a financial coach. Based on the goal progress data, provide 3-5 "
                 "specific, actionable recommendations to help the user achieve their goal. "
@@ -486,9 +486,9 @@ class LLMService:
             user_prompt = f"""
             Goal: {goal.name}
             Category: {goal.category}
-            Target Amount: ${goal.target_amount:,.2f}
+            Target Amount: ${float(goal.target_amount):,.2f}
             Target Date: {goal.target_date}
-            Current Progress: {progress.progress_pct:.1f}%
+            Current Progress: {float(progress.progress_pct):.1f}%
             Pacing Status: {progress.pacing_status}
             Pacing Detail: {progress.pacing_detail}
             Risk Profile: {risk_profile}
@@ -636,4 +636,122 @@ class LLMService:
             'ollama_host': self.ollama_host,
             'current_provider': self._get_available_provider().value if self._get_available_provider() else None
         }
+    
+    def generate_personalized_advice(self, user_id: str, goal_context: dict) -> str:
+        """Generate personalized financial advice for a specific goal"""
+        provider = self._get_available_provider()
+        if not provider:
+            return "Personalized advice is currently unavailable. Please try again later."
+        
+        try:
+            # Prepare context for advice generation
+            goal_name = goal_context.get('goal_name', 'your goal')
+            goal_category = goal_context.get('goal_category', 'general')
+            current_amount = float(goal_context.get('current_amount', 0))
+            target_amount = float(goal_context.get('target_amount', 0))
+            progress_percentage = float(goal_context.get('progress_percentage', 0))
+            timeline_progress = float(goal_context.get('timeline_progress', 0))
+            days_remaining = int(goal_context.get('days_remaining', 0))
+            recent_transactions = goal_context.get('recent_transactions', [])
+            user_risk_profile = goal_context.get('user_risk_profile', 'Balanced')
+            savings_rate = float(goal_context.get('savings_rate', 10))
+            
+            # Analyze recent transactions for spending patterns
+            transaction_analysis = ""
+            if recent_transactions:
+                # Group transactions by category/type
+                categories = {}
+                total_spent = 0
+                for tx in recent_transactions:
+                    category = tx.get('category', 'Other')
+                    amount = abs(float(tx.get('amount', 0) or 0))
+                    if amount > 0:  # Only count expenses (negative amounts)
+                        categories[category] = categories.get(category, 0) + amount
+                        total_spent += amount
+                
+                if categories:
+                    # Find top spending categories
+                    top_categories = sorted(categories.items(), key=lambda x: x[1], reverse=True)[:3]
+                    transaction_analysis = f"Recent spending analysis: "
+                    for cat, amount in top_categories:
+                        percentage = (amount / total_spent * 100) if total_spent > 0 else 0
+                        transaction_analysis += f"{cat} (${float(amount):,.0f}, {float(percentage):.1f}%), "
+                    transaction_analysis = transaction_analysis.rstrip(', ')
+            
+            # Create system prompt for personalized advice
+            system_prompt = (
+                "You are a personal financial advisor with access to the user's complete financial profile. "
+                "Generate specific, actionable advice based on their actual transaction history, goal progress, "
+                "and risk profile. Be very specific with numbers, percentages, and concrete recommendations. "
+                "Reference their actual spending patterns and suggest specific actions they can take. "
+                "Keep advice concise but highly personalized (2-3 paragraphs max). "
+                "Use their real data to make recommendations, not generic advice."
+            )
+            
+            user_prompt = f"""
+            User Profile:
+            - Risk Profile: {user_risk_profile}
+            - Savings Rate: {savings_rate}% of income
+            
+            Goal Details:
+            - Goal: {goal_name} ({goal_category})
+            - Current Amount: ${current_amount:,.0f}
+            - Target Amount: ${target_amount:,.0f}
+            - Progress: {progress_percentage:.1f}%
+            - Timeline Progress: {timeline_progress:.1f}%
+            - Days Remaining: {int(days_remaining)}
+            
+            Recent Transaction Analysis:
+            {transaction_analysis}
+            
+            Recent Transactions (last 5):
+            {chr(10).join([f"- {tx.get('description', 'Transaction')}: ${float(tx.get('amount', 0) or 0):,.2f} ({tx.get('category', 'Other')})" for tx in recent_transactions[:5]])}
+            
+            Analysis Required:
+            1. Analyze their spending patterns from the transaction data above
+            2. Compare their timeline progress ({timeline_progress:.1f}%) vs amount progress ({progress_percentage:.1f}%)
+            3. Calculate exactly how much they need to save per month to reach their goal
+            4. Identify specific spending categories they can reduce
+            5. Provide exact dollar amounts and percentages for recommendations
+            
+            Generate personalized advice that:
+            - References their actual spending patterns
+            - Provides specific monthly savings targets
+            - Suggests concrete spending reductions
+            - Uses their real transaction data
+            - Gives exact numbers and percentages
+            """
+            
+            # Generate advice using LLM
+            if provider == 'openai':
+                response = self.openai_client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    max_tokens=500,
+                    temperature=0.7
+                )
+                advice = response.choices[0].message.content.strip()
+            else:
+                # Fallback for other providers - more specific advice
+                remaining_amount = float(target_amount) - float(current_amount)
+                monthly_target = remaining_amount / max(int(days_remaining) / 30, 1) if int(days_remaining) > 0 else remaining_amount
+                
+                if progress_percentage > timeline_progress:
+                    advice = f"Great progress! You're ahead of schedule by {progress_percentage - timeline_progress:.1f}%. You need to save ${monthly_target:,.0f} monthly to reach your ${target_amount:,.0f} goal for {goal_name}. Consider increasing your current {int(savings_rate)}% savings rate to {min(int(savings_rate) + 5, 30)}% to maintain this momentum."
+                elif progress_percentage < timeline_progress:
+                    advice = f"You're behind schedule by {timeline_progress - progress_percentage:.1f}%. To catch up, increase your monthly savings to ${monthly_target:,.0f} (currently saving ${current_amount / max(days_remaining / 30, 1):,.0f}). Consider reducing discretionary spending by 15-20% to accelerate progress toward your {goal_name} goal."
+                else:
+                    advice = f"You're perfectly on track! Maintain your current pace by saving ${monthly_target:,.0f} monthly to reach your ${target_amount:,.0f} goal for {goal_name}. Your {int(savings_rate)}% savings rate is working well."
+            
+            return advice
+            
+        except Exception as e:
+            print(f"Error generating personalized advice: {str(e)}")
+            # More specific fallback advice
+            remaining_amount = float(target_amount) - float(current_amount)
+            monthly_target = remaining_amount / max(int(days_remaining) / 30, 1) if int(days_remaining) > 0 else remaining_amount
+            return f"Based on your {float(progress_percentage):.1f}% progress toward {goal_name}, you need to save ${float(monthly_target):,.0f} monthly to reach your ${float(target_amount):,.0f} target. Consider reviewing your budget to increase your savings rate from {int(savings_rate)}% to {min(int(savings_rate) + 5, 30)}%."
     

@@ -136,44 +136,68 @@ class GoalSimulationService:
         }
     
     def _generate_mock_transaction(self, transaction_date: date, goal_category: str) -> Dict[str, Any]:
-        """Generate a mock transaction for goal simulation"""
-        # Generate random amount between $50 and $500
-        amount = round(random.uniform(50, 500), 2)
-        
+        """Generate a realistic mock transaction for goal simulation"""
         # Generate transaction type (mostly income/savings for goals)
         transaction_types = ['income', 'savings', 'expense']
-        weights = [0.4, 0.4, 0.2]  # 40% income, 40% savings, 20% expense
+        weights = [0.5, 0.3, 0.2]  # 50% income, 30% savings, 20% expense
         transaction_type = random.choices(transaction_types, weights=weights)[0]
         
-        # Generate category based on goal category
-        categories = {
-            'Emergency Fund': ['Salary', 'Bonus', 'Investment', 'Other Income'],
-            'Vacation': ['Salary', 'Bonus', 'Savings', 'Other Income'],
-            'Education': ['Salary', 'Scholarship', 'Grant', 'Other Income'],
-            'Home': ['Salary', 'Investment', 'Savings', 'Other Income'],
-            'Car': ['Salary', 'Bonus', 'Savings', 'Other Income'],
-            'Business': ['Revenue', 'Investment', 'Grant', 'Other Income'],
-            'Retirement': ['Salary', 'Investment', 'Pension', 'Other Income'],
-            'Other': ['Salary', 'Investment', 'Savings', 'Other Income']
-        }
+        # Realistic transaction templates
+        income_transactions = [
+            ("Monthly Salary - Company ABC", "Income", 2000, 5000),
+            ("Freelancer Payment - Upwork", "Income", 300, 1500),
+            ("Quarterly Bonus", "Income", 1000, 3000),
+            ("Investment Dividend", "Savings & Investments", 50, 500),
+            ("Side Hustle Income", "Income", 200, 800),
+            ("Tax Refund", "Income", 500, 2000),
+            ("Rental Income", "Income", 800, 2000),
+            ("Consulting Fee", "Income", 400, 1200)
+        ]
         
-        category_options = categories.get(goal_category, categories['Other'])
-        category = random.choice(category_options)
+        savings_transactions = [
+            ("Automatic Savings Transfer", "Savings & Investments", 200, 800),
+            ("Emergency Fund Contribution", "Savings & Investments", 300, 1000),
+            ("Goal-Specific Savings", "Savings & Investments", 150, 600),
+            ("Investment Contribution", "Savings & Investments", 250, 1000),
+            ("Retirement Contribution", "Savings & Investments", 400, 1500),
+            ("High-Yield Savings", "Savings & Investments", 100, 500)
+        ]
         
-        # Generate description
-        descriptions = {
-            'income': f"Mock income for {category}",
-            'savings': f"Mock savings contribution for {category}",
-            'expense': f"Mock expense for {category}"
-        }
+        expense_transactions = [
+            ("Starbucks Coffee", "Food & Beverage", 5, 15),
+            ("Uber Ride - Airport", "Transportation", 20, 80),
+            ("Electricity Bill - October", "Bills & Utilities", 80, 200),
+            ("Netflix Subscription", "Entertainment", 15, 20),
+            ("Zara Online Purchase", "Shopping", 30, 150),
+            ("Gym Membership Renewal", "Health & Fitness", 40, 80),
+            ("Tuition Fee - Coding Bootcamp", "Education", 500, 2000),
+            ("Weekend Dinner - Sushi Bar", "Food & Beverage", 40, 120),
+            ("Gas Station Payment", "Transportation", 30, 80),
+            ("Rent Payment - November", "Bills & Utilities", 1200, 3000),
+            ("Grocery Store - Carrefour", "Groceries & Food", 60, 200),
+            ("Pharmacy - Cold Medicine", "Health & Fitness", 15, 50),
+            ("Cinema Tickets", "Entertainment", 20, 40),
+            ("Credit Card Payment", "Miscellaneous", 200, 800),
+            ("Phone Bill - Zain", "Bills & Utilities", 40, 100),
+            ("Amazon Order - Headphones", "Shopping", 50, 300),
+            ("Restaurant - Pizza Hut", "Food & Beverage", 25, 80)
+        ]
         
-        description = descriptions.get(transaction_type, f"Mock {transaction_type} for {category}")
+        if transaction_type == 'income':
+            name, category, min_amount, max_amount = random.choice(income_transactions)
+            amount = round(random.uniform(min_amount, max_amount), 2)
+        elif transaction_type == 'savings':
+            name, category, min_amount, max_amount = random.choice(savings_transactions)
+            amount = round(random.uniform(min_amount, max_amount), 2)
+        else:  # expense
+            name, category, min_amount, max_amount = random.choice(expense_transactions)
+            amount = -round(random.uniform(min_amount, max_amount), 2)  # Negative for expenses
         
         return {
             'date': transaction_date.isoformat(),
             'amount': amount,
             'category': category,
-            'description': description,
+            'description': name,
             'transaction_type': transaction_type
         }
     

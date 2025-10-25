@@ -23,6 +23,12 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     last_mock_date = db.Column(db.Date, nullable=True)  # Track last simulated month for mock data
     
+    # Gamification fields
+    current_streak = db.Column(db.Integer, default=0)  # Current streak count
+    last_activity_date = db.Column(db.Date, nullable=True)  # Last activity date for streak tracking
+    total_points = db.Column(db.Integer, default=0)  # Total points earned
+    level = db.Column(db.String(20), default='Bronze')  # User level (Bronze, Silver, Gold, Diamond)
+    
     # Relationships
     assessments = db.relationship('Assessment', backref='user', lazy=True, cascade='all, delete-orphan')
     goals = db.relationship('Goal', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -40,7 +46,11 @@ class User(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None,
             'is_active': self.is_active,
-            'last_mock_date': self.last_mock_date.isoformat() if self.last_mock_date else None
+            'last_mock_date': self.last_mock_date.isoformat() if self.last_mock_date else None,
+            'current_streak': self.current_streak,
+            'last_activity_date': self.last_activity_date.isoformat() if self.last_activity_date else None,
+            'total_points': self.total_points,
+            'level': self.level
         }
 
 class Assessment(db.Model):

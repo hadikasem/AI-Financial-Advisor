@@ -9,6 +9,7 @@ import pandas as pd
 from datetime import datetime, date, timedelta
 import time
 import os
+import re
 from typing import Dict, List, Optional, Any
 
 # Configuration
@@ -154,6 +155,9 @@ st.markdown("""
     .progress-fill.amount {
         background: linear-gradient(90deg, #e74c3c, #f1948a);
     }
+    .progress-fill.timeline {
+        background: linear-gradient(90deg, #2196F3, #03DAC6);
+    }
     .progress-value {
         position: absolute;
         top: -35px;
@@ -203,8 +207,128 @@ st.markdown("""
     .button-align {
         margin-top: 1.5rem;
     }
+    .goals-table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 1rem 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .goals-table th {
+        background-color: #1f77b4;
+        color: white;
+        padding: 12px 8px;
+        text-align: left;
+        font-weight: bold;
+        border: 1px solid #1565c0;
+    }
+    .goals-table td {
+        padding: 10px 8px;
+        border: 1px solid #e0e0e0;
+        background-color: white;
+    }
+    .goals-table tr:nth-child(even) {
+        background-color: #f8f9fa;
+    }
+    .goals-table tr:hover {
+        background-color: #e3f2fd;
+        cursor: pointer;
+    }
+    .goal-row {
+        display: flex;
+        align-items: center;
+        padding: 8px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    .goal-row:hover {
+        background-color: #f0f2f6;
+    }
 </style>
 """, unsafe_allow_html=True)
+
+def extract_amount_from_goal_text(goal_text: str) -> Optional[float]:
+    """Extract monetary amount from goal suggestion text and return as float"""
+    try:
+        # Common monetary amount patterns in goal suggestions
+        patterns = [
+            r'\$(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)',  # $15,000 or $15,000.00
+            r'\$(\d+(?:\.\d{2})?)',  # $15000 or $15000.00
+            r'(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*dollars?',  # 15,000 dollars
+            r'(\d+(?:\.\d{2})?)\s*dollars?',  # 15000 dollars
+            r'(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*USD',  # 15,000 USD
+            r'(\d+(?:\.\d{2})?)\s*USD',  # 15000 USD
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, goal_text, re.IGNORECASE)
+            if match:
+                amount_str = match.group(1)
+                # Remove commas and convert to float
+                amount_str_clean = amount_str.replace(',', '')
+                amount = float(amount_str_clean)
+                
+                # Reasonable amount range (between $100 and $10,000,000)
+                if 100 <= amount <= 10000000:
+                    return amount
+        
+        return None
+    except Exception as e:
+        print(f"Error extracting amount from '{goal_text}': {e}")
+        return None
+
+def extract_date_from_goal_text(goal_text: str) -> Optional[date]:
+    """Extract date from goal suggestion text and return as date object"""
+    try:
+        # Common date patterns in goal suggestions
+        patterns = [
+            r'by\s+(\w+)\s+(\d{4})',  # "by June 2026"
+            r'by\s+(\d{1,2})/(\d{4})',  # "by 6/2026"
+            r'by\s+(\d{1,2})-(\d{4})',  # "by 6-2026"
+            r'in\s+(\w+)\s+(\d{4})',   # "in June 2026"
+            r'(\w+)\s+(\d{4})',        # "June 2026" (without by/in)
+        ]
+        
+        month_names = {
+            'january': 1, 'jan': 1,
+            'february': 2, 'feb': 2,
+            'march': 3, 'mar': 3,
+            'april': 4, 'apr': 4,
+            'may': 5,
+            'june': 6, 'jun': 6,
+            'july': 7, 'jul': 7,
+            'august': 8, 'aug': 8,
+            'september': 9, 'sep': 9, 'sept': 9,
+            'october': 10, 'oct': 10,
+            'november': 11, 'nov': 11,
+            'december': 12, 'dec': 12
+        }
+        
+        goal_text_lower = goal_text.lower()
+        
+        for pattern in patterns:
+            match = re.search(pattern, goal_text_lower)
+            if match:
+                groups = match.groups()
+                
+                if len(groups) == 2:
+                    month_str, year_str = groups
+                    year = int(year_str)
+                    
+                    # Handle month
+                    if month_str.isdigit():
+                        month = int(month_str)
+                    else:
+                        month = month_names.get(month_str.lower())
+                    
+                    if month and 1 <= month <= 12 and year >= 2024:  # Reasonable year range
+                        # Return the first day of the month
+                        return date(year, month, 1)
+        
+        return None
+    except Exception as e:
+        print(f"Error extracting date from '{goal_text}': {e}")
+        return None
 
 def init_session_state():
     """Initialize session state variables"""
@@ -226,6 +350,8 @@ def init_session_state():
         'current_question_index': 0,
         'goal_suggestions_visible': True,
         'prefilled_goal': None,
+        'prefilled_goal_date': None,
+        'prefilled_goal_amount': None,
         'cached_goal_suggestions': None
         }
 
@@ -337,36 +463,118 @@ def display_question_progress_bar(question_id: str, question_text: str, answers:
     """Display progress bar navigation for questions"""
     session = st.session_state[SESSION_STATE_KEY]
     
-    # Update answered questions list
+    # Update answered questions list - only add if question has an answer
     answered_questions = session.get('answered_questions', [])
-    if question_id not in [q['id'] for q in answered_questions]:
-        answered_questions.append({
-            'id': question_id,
-            'text': question_text,
-            'answer': answers.get(question_id, '')
-        })
+    
+    # Add current question to answered list if it has an answer
+    if question_id in answers and answers[question_id]:
+        # Check if this question is already in answered_questions
+        existing_question = next((q for q in answered_questions if q['id'] == question_id), None)
+        if existing_question:
+            # Update existing question
+            existing_question['answer'] = answers[question_id]
+        else:
+            # Add new answered question
+            answered_questions.append({
+                'id': question_id,
+                'text': question_text,
+                'answer': answers[question_id]
+            })
         session['answered_questions'] = answered_questions
     
-    # Display progress bar at top middle
-    if len(answered_questions) > 0:
-        st.markdown("---")
+    # Always show progress bar
+    st.markdown("---")
+    
+    # Progress header
+    st.markdown("### 📊 Assessment Progress")
+    
+    # Create a better visual progress indicator
+    total_questions = 12  # Assuming 12 questions total
+    answered_count = len(answered_questions)
+    progress_percentage = (answered_count / total_questions) * 100
+    
+    # Progress bar
+    st.progress(progress_percentage / 100)
+    st.markdown(f"**{answered_count}/{total_questions} questions answered**")
+    
+    # Question navigation buttons - show questions progressively
+    st.markdown("**Navigate to questions:**")
+    
+    # Create list of questions to show
+    questions_to_show = []
+    
+    # Map question IDs to question numbers
+    question_id_to_num = {
+        'age': 1, 'horizon': 2, 'emergency_fund_months': 3, 'dependents': 4,
+        'income_stability': 5, 'experience': 6, 'loss_tolerance': 7, 'savings_rate': 8,
+        'debt_load': 9, 'liquidity_need': 10, 'reaction_scenario': 11, 'investment_objective': 12
+    }
+    
+    # Get all answered question numbers
+    answered_question_nums = set()
+    for q in answered_questions:
+        q_num = question_id_to_num.get(q['id'], 0)
+        if q_num > 0:
+            answered_question_nums.add(q_num)
+    
+    # Get current question number
+    current_question_num = question_id_to_num.get(question_id, 1)
+    
+    # Determine the maximum question number to show
+    # Show all answered questions + current question
+    max_question_num = max(max(answered_question_nums, default=0), current_question_num)
+    
+    # Show all questions from 1 to max question number
+    for q_num in range(1, max_question_num + 1):
+        # Find the question ID for this number
+        q_id = next((qid for qid, num in question_id_to_num.items() if num == q_num), f"q{q_num}")
         
-        # Create progress bar with dashes
-        progress_dashes = "-" * len(answered_questions)
+        # Check if this question is answered
+        is_answered = q_num in answered_question_nums
+        is_current = q_id == question_id
         
-        # Center the progress bar
-        col1, col2, col3 = st.columns([2, 1, 2])
-        with col2:
-            st.markdown(f"**Progress:** `{progress_dashes}`")
-            
-            # Make each dash clickable
-            cols = st.columns(len(answered_questions))
-            for i, question in enumerate(answered_questions):
-                with cols[i]:
-                    if st.button(f"Q{i+1}", key=f"progress_q{i+1}", help=f"Go to: {question['text'][:30]}..."):
-                        navigate_to_question(question['id'])
+        questions_to_show.append({
+            'num': q_num,
+            'id': q_id,
+            'answered': is_answered,
+            'current': is_current
+        })
+    
+    # Sort by question number
+    questions_to_show.sort(key=lambda x: x['num'])
+    
+    
+    # Display buttons horizontally in one line
+    if questions_to_show:
+        # Create columns for each question to show
+        cols = st.columns(len(questions_to_show))
         
-        st.markdown("---")
+        for i, question_info in enumerate(questions_to_show):
+            with cols[i]:
+                q_num = question_info['num']
+                is_answered = question_info['answered']
+                is_current = question_info['current']
+                
+                # Style the button based on status
+                if is_current:
+                    button_style = "🔵"  # Current question
+                    button_text = f"{button_style} Q{q_num}"
+                elif is_answered:
+                    button_style = "✅"  # Answered
+                    button_text = f"{button_style} Q{q_num}"
+                else:
+                    button_style = "⚪"  # Not answered yet
+                    button_text = f"{button_style} Q{q_num}"
+                
+                if st.button(
+                    button_text,
+                    key=f"progress_q{q_num}",
+                    help=f"Question {q_num}" + (" (Current)" if is_current else " (Answered)" if is_answered else " (Not answered)"),
+                    use_container_width=True
+                ):
+                    navigate_to_question(question_info['id'])
+    
+    st.markdown("---")
 
 def navigate_to_question(question_id: str):
     """Navigate to a specific question"""
@@ -392,7 +600,10 @@ def display_navigation_sidebar():
     # Navigation items
     nav_items = [
         ("📊", "Dashboard"),
-        ("🎯", "Goals"), 
+        ("➕", "Create Goal"),
+        ("🪜", "Ongoing Goals"),
+        ("🏆", "Completed Goals"),
+        ("🎮", "Gamification"),
         ("📋", "Assessment"),
         ("🔔", "Notifications")
     ]
@@ -405,14 +616,21 @@ def display_navigation_sidebar():
         # Force navigation to Assessment
         st.session_state[SESSION_STATE_KEY]['current_page'] = 'Assessment'
     
+    # Check if assessment is completed
+    assessment_completed = session.get('assessment_completed')
+    
     # Display navigation items
     for icon, page_name in nav_items:
         is_active = session['current_page'] == page_name
         active_class = "active" if is_active else ""
         
-        if st.button(f"{icon} {page_name}", key=f"nav_{page_name}", use_container_width=True):
-            st.session_state[SESSION_STATE_KEY]['current_page'] = page_name
-            st.rerun()
+        # Disable all buttons except Assessment if assessment not completed
+        if page_name == "Assessment" or assessment_completed:
+            if st.button(f"{icon} {page_name}", key=f"nav_{page_name}", use_container_width=True):
+                st.session_state[SESSION_STATE_KEY]['current_page'] = page_name
+                st.rerun()
+        else:
+            st.button(f"{icon} {page_name}", key=f"nav_{page_name}", use_container_width=True, disabled=True)
     
     st.divider()
     
@@ -609,7 +827,7 @@ def display_assessment_results(assessment_data):
                 st.error(f"Error starting new assessment: {str(e)}")
     with col2:
         if st.button("🎯 Set Up Your Goals", type="primary", use_container_width=True):
-            st.session_state[SESSION_STATE_KEY]['current_page'] = 'Goals'
+            st.session_state[SESSION_STATE_KEY]['current_page'] = 'Create Goal'
             st.rerun()
 
 def assessment_page():
@@ -643,7 +861,15 @@ def assessment_page():
         # Display progress bar
         display_question_progress_bar(question['id'], question['question'], answers)
         
-        st.subheader(f"Question {len(answers) + 1}")
+        # Calculate the actual question number based on question ID
+        question_id_to_num = {
+            'age': 1, 'horizon': 2, 'emergency_fund_months': 3, 'dependents': 4,
+            'income_stability': 5, 'experience': 6, 'loss_tolerance': 7, 'savings_rate': 8,
+            'debt_load': 9, 'liquidity_need': 10, 'reaction_scenario': 11, 'investment_objective': 12
+        }
+        actual_question_num = question_id_to_num.get(question['id'], len(answers) + 1)
+        
+        st.subheader(f"Question {actual_question_num}")
         st.write(question['question'])
         
         # Get current answer for this question
@@ -654,18 +880,29 @@ def assessment_page():
             validation = question.get('validation', {})
             min_val = float(validation.get('min', 0))
             max_val = float(validation.get('max', 1000))
-            step_val = 1.0 if question['id'] in ['age', 'horizon', 'dependents'] else 0.1
             
-            # Use current answer as default value
-            default_value = float(current_answer) if current_answer else min_val
-            
-            answer = st.number_input(
-                "Your answer:",
-                min_value=min_val,
-                max_value=max_val,
-                step=step_val,
-                value=default_value
-            )
+            # For questions 3, 4, 8 (emergency_fund_months, dependents, savings_rate), use integer input
+            if question['id'] in ['emergency_fund_months', 'dependents', 'savings_rate']:
+                step_val = 1
+                default_value = int(float(current_answer)) if current_answer else int(min_val)
+                answer = st.number_input(
+                    "Your answer:",
+                    min_value=int(min_val),
+                    max_value=int(max_val),
+                    step=step_val,
+                    value=default_value,
+                    format="%d"
+                )
+            else:
+                step_val = 1.0 if question['id'] in ['age', 'horizon'] else 0.1
+                default_value = float(current_answer) if current_answer else min_val
+                answer = st.number_input(
+                    "Your answer:",
+                    min_value=min_val,
+                    max_value=max_val,
+                    step=step_val,
+                    value=default_value
+                )
         elif question['type'] == 'multiple_choice':
             # Use current answer as default selection
             default_index = 0
@@ -681,25 +918,72 @@ def assessment_page():
         with col1:
             # Previous Question button
             answered_questions = session.get('answered_questions', [])
-            if len(answered_questions) > 1:
-                if st.button("⬅️ Previous Question"):
-                    prev_question = answered_questions[-2]
-                    navigate_to_question(prev_question['id'])
+            
+            # Map question IDs to question numbers
+            question_id_to_num = {
+                'age': 1, 'horizon': 2, 'emergency_fund_months': 3, 'dependents': 4,
+                'income_stability': 5, 'experience': 6, 'loss_tolerance': 7, 'savings_rate': 8,
+                'debt_load': 9, 'liquidity_need': 10, 'reaction_scenario': 11, 'investment_objective': 12
+            }
+            
+            # Get current question number
+            current_question_num = question_id_to_num.get(question['id'], 1)
+            prev_question_num = current_question_num - 1
+            
+            # Check if there's a previous question (question number > 0)
+            if prev_question_num > 0:
+                # Find the question ID for the previous question number
+                prev_question_id = next((qid for qid, num in question_id_to_num.items() if num == prev_question_num), None)
+                
+                if prev_question_id:
+                    if st.button("⬅️ Previous Question"):
+                        navigate_to_question(prev_question_id)
         
         with col2:
             if st.button("Submit Answer", type="primary"):
-                if answer:
-                    response = make_api_request("/assessment/answer", "POST", {
-                        "question_id": question['id'],
-                        "answer": str(answer)
-                    }, token=token)
+                if answer is not None:
+                    with st.spinner("Submitting answer..."):
+                        response = make_api_request("/assessment/answer", "POST", {
+                            "question_id": question['id'],
+                            "answer": str(answer)
+                        }, token=token)
                     
                     if response:
+                        # Update answered questions list
+                        session = st.session_state[SESSION_STATE_KEY]
+                        answered_questions = session.get('answered_questions', [])
+                        
+                        # Add current question to answered list
+                        # Use the actual question ID from the backend (age, horizon, etc.)
+                        q_id = question['id']
+                        
+                        existing_question = next((q for q in answered_questions if q['id'] == q_id), None)
+                        if existing_question:
+                            existing_question['answer'] = str(answer)
+                        else:
+                            answered_questions.append({
+                                'id': q_id,
+                                'text': question['question'],
+                                'answer': str(answer)
+                            })
+                        session['answered_questions'] = answered_questions
+                        
                         if "next_step" in response and response["next_step"] == "complete_assessment":
                             # Assessment complete, calculate results
-                            complete_response = make_api_request("/assessment/complete", "POST", token=token)
+                            with st.spinner("Calculating your risk profile..."):
+                                complete_response = make_api_request("/assessment/complete", "POST", token=token)
                             if complete_response:
                                 st.session_state[SESSION_STATE_KEY]['assessment_completed'] = complete_response
+                                
+                                # Update streak for completing assessment
+                                try:
+                                    streak_response = make_api_request("/gamification/update-streak", "POST", {}, token=token)
+                                    if streak_response and streak_response.get('success'):
+                                        if streak_response.get('streak_bonus', 0) > 0:
+                                            st.info(f"🔥 Assessment completed! Streak bonus: {streak_response.get('streak_bonus', 0)} points")
+                                except Exception as e:
+                                    st.error(f"Error updating streak: {str(e)}")
+                                
                                 st.rerun()
                         else:
                             # Update current assessment
@@ -1177,9 +1461,10 @@ def display_goal_suggestions(token: str):
         # Get LLM-generated goal suggestions (use cached if available)
         cached_suggestions = session.get('cached_goal_suggestions')
         if cached_suggestions is None:
-            suggestions_response = make_api_request("/goals/suggestions", token=token)
-            suggestions = suggestions_response.get('suggestions', []) if suggestions_response else []
-            session['cached_goal_suggestions'] = suggestions
+            with st.spinner("Generating personalized goal suggestions..."):
+                suggestions_response = make_api_request("/goals/suggestions", token=token)
+                suggestions = suggestions_response.get('suggestions', []) if suggestions_response else []
+                session['cached_goal_suggestions'] = suggestions
         else:
             suggestions = cached_suggestions
         
@@ -1187,12 +1472,33 @@ def display_goal_suggestions(token: str):
             for i, suggestion in enumerate(suggestions, 1):
                 col1, col2 = st.columns([3, 1])
                 with col1:
-                    st.write(f"{i}. {suggestion}")
+                    # Use markdown with consistent styling instead of st.write
+                    st.markdown(f"**{i}.** {suggestion}")
                 with col2:
-                    if st.button(f"Use This Goal", key=f"use_suggestion_{i}"):
+                    if st.button(f"Use This Goal", key=f"use_suggestion_{i}", help=f"Use '{suggestion}' as your goal name"):
                         # Pre-fill the create goal form with this suggestion
                         session = st.session_state[SESSION_STATE_KEY]
                         session['prefilled_goal'] = suggestion
+                        
+                        # Extract date from suggestion text
+                        extracted_date = extract_date_from_goal_text(suggestion)
+                        if extracted_date:
+                            session['prefilled_goal_date'] = extracted_date
+                        else:
+                            session['prefilled_goal_date'] = None
+                        
+                        # Extract amount from suggestion text
+                        extracted_amount = extract_amount_from_goal_text(suggestion)
+                        if extracted_amount:
+                            session['prefilled_goal_amount'] = extracted_amount
+                        else:
+                            session['prefilled_goal_amount'] = None
+                        
+                        # Navigate to Create Goal page
+                        session['current_page'] = 'Create Goal'
+                        # Don't clear cached suggestions - keep them persistent
+                        # session['cached_goal_suggestions'] = None  # Removed this line
+                        st.success(f"Selected: {suggestion}")
                         st.rerun()
             
             # Button to get more suggestions
@@ -1220,233 +1526,267 @@ def display_goal_suggestions(token: str):
         st.info("Complete your risk assessment to get personalized goal suggestions!")
 
 def dashboard_page():
-    """Main dashboard with progress tracking and recommendations"""
-    st.markdown('<h1 class="main-header">Dashboard</h1>', unsafe_allow_html=True)
+    """Enhanced Dashboard Overview with comprehensive goal management"""
+    st.markdown('<h1 class="main-header">Dashboard Overview</h1>', unsafe_allow_html=True)
     
-    session = st.session_state[SESSION_STATE_KEY]
-    token = session['access_token']
+    # Get user token - fix the token retrieval
+    session = st.session_state.get(SESSION_STATE_KEY, {})
+    token = session.get('access_token')
+    if not token:
+        st.error("Please log in to view your dashboard")
+        return
     
-    # Progress Simulation Controls
-    st.subheader("📈 Progress Simulation")
+    # Get user goals
+    goals_response = make_api_request("/goals", token=token)
+    if not goals_response:
+        st.error("Failed to load goals")
+        return
     
-    # Explanation of the simulation system
-    with st.expander("ℹ️ How the Simulation Works", expanded=False):
-        st.markdown("""
-        **This is a mock data simulation system** that generates realistic financial progress for testing and demonstration purposes.
-        
-        **What it does:**
-        - Generates 8-15 mock transactions per month
-        - Creates realistic income, savings, and expense transactions
-        - Updates your goal progress automatically
-        - Tracks simulation progress using the "Simulated Until" date
-        
-        **How to use:**
-        1. Select how many months to simulate (1, 3, 6, or 12)
-        2. Click "🔄 Simulate Progress" to generate mock data
-        3. Watch your goals update with realistic progress
-        4. Repeat to simulate longer time periods
-        
-        **Note:** This is simulation data only - no real financial transactions are involved.
-        """)
+    goals = goals_response.get('goals', [])
+    active_goals = [g for g in goals if not g.get('completed', False)]
+    completed_goals = [g for g in goals if g.get('completed', False)]
     
-    st.info("💡 Use the controls below to generate simulated progress for your goals.")
-    
-    # Get progress summary to show current mock tracking info
-    progress_summary_response = make_api_request("/progress/summary", token=token)
-    progress_summary = progress_summary_response if progress_summary_response else {}
-    
-    # Simulation controls
-    st.markdown("---")
-    
-    # Get simulated until date for display
-    progress_until = progress_summary.get('last_mock_date')
-    if progress_until is None:
-        # Get the earliest goal start date as default
-        goals_response = make_api_request("/goals", token=token)
-        goals = goals_response.get('goals', []) if goals_response else []
-        if goals:
-            # Find the earliest start date among all goals
-            earliest_start_date = min(goal['start_date'] for goal in goals)
-            progress_until = earliest_start_date
-        else:
-            progress_until = 'No goals created'
-    
-    # Layout: Simulated Until | Months to simulate | Simulate Progress button
-    col1, col2, col3 = st.columns([1, 1, 1])
+    # Summary cards
+    st.markdown("### 📊 Summary Overview")
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Simulated Until", progress_until)
+        st.metric("Active Goals", len(active_goals))
+    with col2:
+        st.metric("Completed Goals", len(completed_goals))
+    with col3:
+        # Calculate total saved from goal accounts
+        total_saved = 0
+        for goal in goals:
+            try:
+                account_response = make_api_request(f"/goals/{goal['id']}/account", token=token)
+                if account_response and account_response.get('account'):
+                    total_saved += account_response['account'].get('balance', 0)
+                else:
+                    total_saved += goal.get('current_amount', 0)
+            except:
+                total_saved += goal.get('current_amount', 0)
+        st.metric("Total Saved", f"${total_saved:,.2f}")
+    with col4:
+        if goals:
+            overall_progress = 0
+            for goal in goals:
+                try:
+                    account_response = make_api_request(f"/goals/{goal['id']}/account", token=token)
+                    if account_response and account_response.get('account'):
+                        current_amount = account_response['account'].get('balance', 0)
+                    else:
+                        current_amount = goal.get('current_amount', 0)
+                    target_amount = goal.get('target_amount', 1)
+                    if target_amount > 0:
+                        overall_progress += (current_amount / target_amount) * 100
+                except:
+                    pass
+            overall_progress = overall_progress / len(goals) if goals else 0
+            st.metric("Overall Progress", f"{overall_progress:.1f}%")
+        else:
+            st.metric("Overall Progress", "0%")
+    
+    # Gamification widget
+    st.markdown("---")
+    st.markdown("### 🎮 Gamification Status")
+    
+    try:
+        gamification_response = make_api_request("/gamification/data", token=token)
+        if gamification_response and gamification_response.get('success'):
+            gamification_data = gamification_response
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                streak = gamification_data.get('current_streak', 0)
+                if streak >= 7:
+                    st.success(f"🔥 {streak}-day streak! You're on fire!")
+                elif streak >= 3:
+                    st.info(f"🔥 {streak}-day streak! Keep it going!")
+                else:
+                    st.metric("🔥 Current Streak", f"{streak} days")
+            
+            with col2:
+                points = gamification_data.get('total_points', 0)
+                level = gamification_data.get('level', 'Bronze')
+                st.metric("⭐ Points", f"{points} ({level})")
+            
+            with col3:
+                next_milestone = gamification_data.get('next_milestone')
+                if next_milestone:
+                    st.info(f"🎯 Next: {next_milestone['level']}")
+                else:
+                    st.success("🏆 All milestones achieved!")
+        else:
+            st.info("🎮 Complete your first goal to start earning points!")
+    except Exception as e:
+        st.info("🎮 Gamification features loading...")
+    
+    # Quick action buttons
+    st.markdown("---")
+    st.markdown("### 🚀 Quick Actions")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("➕ Create New Goal", use_container_width=True, type="primary"):
+            st.session_state[SESSION_STATE_KEY]['current_page'] = "Create Goal"
+            st.rerun()
     
     with col2:
-        # Months to simulate dropdown
-        months_to_simulate = st.selectbox(
-            "Months to simulate per click", 
-            [1, 3, 6, 12],
-            index=0,
-            help="Select how many months of mock data to generate with each click"
-        )
+        if st.button("📊 View Active Goals", use_container_width=True):
+            st.session_state[SESSION_STATE_KEY]['current_page'] = "Ongoing Goals"
+            st.rerun()
     
     with col3:
-        # Check if any goal is completed to disable the button
-        goals_response = make_api_request("/goals", token=token)
-        goals = goals_response.get('goals', []) if goals_response else []
-        
-        # Check if any goal is completed
-        any_goal_completed = False
-        for goal in goals:
-            status_response = make_api_request(f"/goals/{goal['id']}/status", token=token)
-            goal_status = status_response if status_response else {}
-            if goal_status.get('status') == 'completed':
-                any_goal_completed = True
-                break
-        
-        # Update Progress button (disabled if any goal is completed)
-        button_disabled = any_goal_completed
-        button_text = "🎉 Goal Completed!" if any_goal_completed else "🔄 Simulate Progress"
-        
-        st.markdown('<div class="button-align">', unsafe_allow_html=True)
-        if st.button(button_text, type="primary", use_container_width=True, disabled=button_disabled):
-            with st.spinner("Generating mock transactions and updating progress..."):
-                # Update progress with mock data
-                mock_progress_response = make_api_request("/progress/mock-update", "POST", {
-                    "months_to_simulate": months_to_simulate
-                }, token=token)
-                
-                if mock_progress_response and mock_progress_response.get('success'):
-                    # Show success message with details
-                    transactions_generated = mock_progress_response.get('transactions_generated', 0)
-                    months_simulated = mock_progress_response.get('months_simulated', 0)
-                    progress_until = mock_progress_response.get('progress_until', 'Unknown')
-                    
-                    st.success(f"✅ Generated {transactions_generated} transactions for {months_simulated} month(s)!")
-                    st.info(f"📅 Progress tracked until: {progress_until}")
-                    
-                    # Update recommendations for all goals
-                    goals_response = make_api_request("/goals", token=token)
-                    goals = goals_response.get('goals', []) if goals_response else []
-                    
-                    recommendations_updated = 0
-                    recommendations_errors = 0
-                    for goal in goals:
-                        try:
-                            update_response = make_api_request("/recommendations/update", "POST", {
-                                "goal_id": goal['id']
-                            }, token=token)
-                            if update_response and 'recommendations' in update_response:
-                                recommendations_updated += 1
-                            elif update_response and 'error' in update_response:
-                                recommendations_errors += 1
-                                print(f"Error updating recommendations for goal {goal['id']}: {update_response['error']}")
-                        except Exception as e:
-                            recommendations_errors += 1
-                            print(f"Error updating recommendations for goal {goal['id']}: {e}")
-                    
-                    if recommendations_updated > 0 and recommendations_errors == 0:
-                        st.success(f"💡 Recommendations updated for {recommendations_updated} goals!")
-                    elif recommendations_updated > 0 and recommendations_errors > 0:
-                        st.warning(f"💡 Recommendations updated for {recommendations_updated} goals, but {recommendations_errors} failed due to LLM issues.")
-                    elif recommendations_errors > 0:
-                        st.warning("💡 Recommendations could not be updated due to LLM issues.")
-                    
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    error_msg = mock_progress_response.get('error', 'Unknown error') if mock_progress_response else 'Failed to connect to API'
-                    message = mock_progress_response.get('message', error_msg) if mock_progress_response else error_msg
-                    suggestion = mock_progress_response.get('suggestion', '') if mock_progress_response else ''
-                    
-                    st.error(f"❌ Failed to update progress: {message}")
-                    if suggestion:
-                        st.info(f"💡 {suggestion}")
-        st.markdown('</div>', unsafe_allow_html=True)
+        if st.button("🏆 View Completed Goals", use_container_width=True):
+            st.session_state[SESSION_STATE_KEY]['current_page'] = "Completed Goals"
+            st.rerun()
     
+    # Recent activity section
     st.markdown("---")
+    st.markdown("### 📈 Recent Activity")
     
-    # Get goals and their progress
-    goals_response = make_api_request("/goals", token=token)
-    goals = goals_response.get('goals', []) if goals_response else []
-    
-    if not goals:
-        st.info("No goals found. Please create some goals first.")
-        
-        # Check if user has completed assessment
-        assessment_completed = session.get('assessment_completed')
-        
-        if assessment_completed:
-            st.success("🎉 Assessment complete! Now let's set up your financial goals.")
-            
-            # Get goal-setting suggestions based on assessment
-            suggestions_response = make_api_request("/recommendations", token=token)
-            suggestions = suggestions_response.get('recommendations', []) if suggestions_response else []
-            
-            if suggestions:
-                st.markdown('<div class="suggestions-box">', unsafe_allow_html=True)
-                st.subheader("💡 Goal-Setting Suggestions")
-                for i, suggestion in enumerate(suggestions, 1):
-                    st.write(f"{i}. {suggestion}")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                if st.button("🎯 Create Your First Goal", type="primary", use_container_width=True):
-                    st.session_state[SESSION_STATE_KEY]['current_page'] = 'Goals'
-                    st.rerun()
-        else:
-            st.warning("⚠️ Please complete your risk assessment first!")
-            if st.button("📋 Take Assessment", type="primary"):
-                st.session_state[SESSION_STATE_KEY]['current_page'] = 'Assessment'
-                st.rerun()
-        return
-    
-    # Get goals (including completed ones)
-    goals_response = make_api_request("/goals", token=token)
-    goals = goals_response.get('goals', []) if goals_response else []
-    
-    # Filter goals by status
-    active_goals = [g for g in goals if g.get('status', 'active') == 'active']
-    completed_goals = [g for g in goals if g.get('status', 'active') == 'completed']
-    
-    if not goals:
-        st.info("No goals found. Please create some goals first.")
-        
-        # Check if user has completed assessment
-        assessment_completed = session.get('assessment_completed')
-        
-        if assessment_completed:
-            # Get goal-setting suggestions based on assessment
-            suggestions_response = make_api_request("/recommendations", token=token)
-            suggestions = suggestions_response.get('recommendations', []) if suggestions_response else []
-            
-            if suggestions:
-                st.markdown('<div class="suggestions-box">', unsafe_allow_html=True)
-                st.subheader("💡 Goal-Setting Suggestions")
-                for i, suggestion in enumerate(suggestions, 1):
-                    st.write(f"{i}. {suggestion}")
-                st.markdown('</div>', unsafe_allow_html=True)
-            
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                if st.button("🎯 Create Your First Goal", type="primary", use_container_width=True):
-                    st.session_state[SESSION_STATE_KEY]['current_page'] = 'Goals'
-                    st.rerun()
-        else:
-            st.warning("⚠️ Please complete your risk assessment first!")
-            if st.button("📋 Take Assessment", type="primary"):
-                st.session_state[SESSION_STATE_KEY]['current_page'] = 'Assessment'
-                st.rerun()
-        return
-    
-    # Display active goals first
     if active_goals:
-        st.markdown("### 🪜 Active Goals")
+        # Show recent transactions from all goals
+        all_transactions = []
         for goal in active_goals:
-            display_goal_with_progress(goal, token)
+            try:
+                transactions_response = make_api_request(f"/goals/{goal['id']}/transactions", token=token)
+                if transactions_response and transactions_response.get('transactions'):
+                    for transaction in transactions_response['transactions']:
+                        transaction['goal_name'] = goal['name']
+                        all_transactions.append(transaction)
+            except:
+                pass
+        
+        if all_transactions:
+            # Sort by date and show last 5
+            all_transactions.sort(key=lambda x: x.get('date', ''), reverse=True)
+            recent_transactions = all_transactions[:5]
+            
+            for transaction in recent_transactions:
+                col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+                
+                with col1:
+                    st.write(f"**{transaction.get('description', 'Transaction')}** ({transaction.get('goal_name', 'Unknown Goal')})")
+                with col2:
+                    amount = transaction.get('amount', 0)
+                    if transaction.get('transaction_type') == 'income':
+                        st.write(f"💰 +${amount:,.2f}")
+                    else:
+                        st.write(f"💸 -${amount:,.2f}")
+                with col3:
+                    st.write(transaction.get('category', 'N/A'))
+                with col4:
+                    st.write(transaction.get('date', 'N/A')[:10])
+        else:
+            st.info("No recent activity. Start simulating progress on your goals to see transactions here.")
+    else:
+        st.info("No active goals found. Create your first goal to get started!")
     
-    # Display completed goals in separate section with same visual elements
-    if completed_goals:
-        st.markdown("# 🏆 Completed Goals")
-        for goal in completed_goals:
-            display_goal_with_progress(goal, token)
+    # Top active goals progress overview
+    if active_goals:
+        st.markdown("---")
+        st.markdown("### 🎯 Top Active Goals Progress")
+        
+        # Show top 3 active goals by progress
+        goal_progress = []
+        for goal in active_goals:
+            try:
+                # First try to get current amount from account API
+                account_response = make_api_request(f"/goals/{goal['id']}/account", token=token)
+                if account_response and account_response.get('account'):
+                    current_amount = float(account_response['account'].get('balance', 0))
+                    data_source = "account API"
+                else:
+                    # Fallback to goal's current_amount
+                    current_amount = float(goal.get('current_amount', 0))
+                    data_source = "goal data"
+                
+                target_amount = float(goal.get('target_amount', 1))
+                
+                # Calculate progress percentage with proper handling
+                if target_amount > 0:
+                    progress_pct = (current_amount / target_amount) * 100
+                    # Cap progress at 100%
+                    progress_pct = min(100.0, progress_pct)
+                else:
+                    progress_pct = 0.0
+                
+                # Debug: show data source
+                st.caption(f"Debug: {goal['name']} - Data from: {data_source}")
+                
+                goal_progress.append((goal, progress_pct, current_amount))
+            except Exception as e:
+                # If there's any error, use goal's current_amount as fallback
+                current_amount = float(goal.get('current_amount', 0))
+                target_amount = float(goal.get('target_amount', 1))
+                progress_pct = (current_amount / target_amount) * 100 if target_amount > 0 else 0
+                progress_pct = min(100.0, progress_pct)
+                st.caption(f"Debug: {goal['name']} - Error: {str(e)}")
+                goal_progress.append((goal, progress_pct, current_amount))
+        
+        # Sort by progress and show top 3
+        goal_progress.sort(key=lambda x: x[1], reverse=True)
+        top_goals = goal_progress[:3]
+        
+        for i, (goal, progress_pct, current_amount) in enumerate(top_goals, 1):
+            progress_pct = min(100, progress_pct)
+            
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"**{i}. {goal['name']}**")
+                st.progress(progress_pct / 100)
+                # Debug info - show current and target amounts
+                st.caption(f"Current: ${current_amount:,.2f} | Target: ${float(goal.get('target_amount', 0)):,.2f}")
+            with col2:
+                st.write(f"{progress_pct:.1f}%")
+    
+    # Smart recommendations
+    st.markdown("---")
+    st.markdown("### 💡 Smart Recommendations")
+    
+    if not active_goals:
+        st.info("🎯 **Create your first goal!** Start by setting a financial target and begin your journey towards financial success.")
+    elif len(active_goals) == 1:
+        st.info("📈 **Great start!** Consider creating additional goals to diversify your financial portfolio.")
+    elif len(active_goals) < 3:
+        st.info("🚀 **Keep it up!** You're making great progress. Consider adding more goals to maximize your financial growth.")
+    else:
+        st.info("🌟 **Excellent work!** You have multiple active goals. Keep monitoring your progress and adjust strategies as needed.")
+    
+    # Additional insights
+    if active_goals:
+        st.markdown("---")
+        st.markdown("### 📊 Goal Insights")
+        
+        # Calculate average progress
+        total_progress = 0
+        for goal in active_goals:
+            try:
+                account_response = make_api_request(f"/goals/{goal['id']}/account", token=token)
+                if account_response and account_response.get('account'):
+                    current_amount = account_response['account'].get('balance', 0)
+                else:
+                    current_amount = goal.get('current_amount', 0)
+                target_amount = goal.get('target_amount', 1)
+                if target_amount > 0:
+                    total_progress += (current_amount / target_amount) * 100
+            except:
+                pass
+        
+        avg_progress = total_progress / len(active_goals) if active_goals else 0
+        
+        if avg_progress < 25:
+            st.warning("💪 **Keep pushing!** Your goals are just getting started. Consider increasing your savings rate or adjusting timelines.")
+        elif avg_progress < 50:
+            st.info("📈 **Good progress!** You're on track. Consider reviewing your strategies to accelerate progress.")
+        elif avg_progress < 75:
+            st.success("🎯 **Great momentum!** You're making excellent progress. Stay consistent with your approach.")
+        else:
+            st.success("🏆 **Almost there!** You're very close to achieving your goals. Keep up the excellent work!")
 
 def notifications_page():
     """Notifications page"""
@@ -1498,12 +1838,882 @@ def main():
         
         if current_page == "Dashboard":
             dashboard_page()
-        elif current_page == "Goals":
-            goals_page()
+        elif current_page == "Create Goal":
+            create_goal_page()
+        elif current_page == "Ongoing Goals":
+            ongoing_goals_page()
+        elif current_page == "Completed Goals":
+            completed_goals_page()
+        elif current_page == "Gamification":
+            gamification_page()
         elif current_page == "Assessment":
             assessment_page()
         elif current_page == "Notifications":
             notifications_page()
+
+def gamification_page():
+    """Gamification page with milestones, streaks, and leaderboard"""
+    st.markdown('<h1 class="main-header">🎮 Gamification</h1>', unsafe_allow_html=True)
+    
+    session = st.session_state[SESSION_STATE_KEY]
+    token = session['access_token']
+    
+    # Get gamification data
+    try:
+        gamification_response = make_api_request("/gamification/data", token=token)
+        if gamification_response and gamification_response.get('success'):
+            gamification_data = gamification_response
+        else:
+            st.error("Failed to load gamification data")
+            return
+    except Exception as e:
+        st.error(f"Error loading gamification data: {str(e)}")
+        return
+    
+    # Display user stats
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("🔥 Current Streak", f"{gamification_data.get('current_streak', 0)} days")
+    
+    with col2:
+        st.metric("⭐ Total Points", f"{gamification_data.get('total_points', 0)}")
+    
+    with col3:
+        st.metric("🏆 Level", gamification_data.get('level', 'Bronze'))
+    
+    with col4:
+        total_saved = gamification_data.get('total_saved', 0)
+        # Ensure total_saved is a number, not a string
+        try:
+            total_saved = float(total_saved) if total_saved else 0
+        except (ValueError, TypeError):
+            total_saved = 0
+        st.metric("💰 Total Saved", f"${total_saved:,.2f}")
+    
+    st.markdown("---")
+    
+    # Milestone Tracker
+    st.subheader("🏁 Milestone Tracker")
+    
+    achieved_milestones = gamification_data.get('achieved_milestones', [])
+    next_milestone = gamification_data.get('next_milestone')
+    total_saved = gamification_data.get('total_saved', 0)
+    # Ensure total_saved is a number, not a string
+    try:
+        total_saved = float(total_saved) if total_saved else 0
+    except (ValueError, TypeError):
+        total_saved = 0
+    
+    if achieved_milestones:
+        st.markdown("### ✅ Achieved Milestones")
+        for milestone in achieved_milestones:
+            st.success(f"🎉 {milestone['level']} - ${milestone['amount']:,}")
+    
+    if next_milestone:
+        st.markdown("### 🎯 Next Milestone")
+        progress = min(total_saved / next_milestone['amount'], 1.0)
+        st.progress(progress, text=f"{next_milestone['level']} - ${total_saved:,.0f} / ${next_milestone['amount']:,}")
+        
+        remaining = next_milestone['amount'] - total_saved
+        if remaining > 0:
+            st.info(f"💰 You need ${remaining:,.2f} more to unlock {next_milestone['level']}!")
+    
+    # Level Progress
+    st.markdown("---")
+    st.subheader("📈 Level Progress")
+    
+    next_level = gamification_data.get('next_level')
+    if next_level:
+        current_points = gamification_data.get('total_points', 0)
+        points_needed = next_level['points_needed']
+        total_for_next = current_points + points_needed
+        
+        progress = current_points / total_for_next if total_for_next > 0 else 0
+        st.progress(progress, text=f"{current_points} / {total_for_next} points")
+        st.info(f"🎯 {points_needed} more points to reach {next_level['name']} level!")
+    
+    # Leaderboard
+    st.markdown("---")
+    st.subheader("🏆 Leaderboard")
+    
+    try:
+        leaderboard_response = make_api_request("/gamification/leaderboard?limit=10", token=token)
+        if leaderboard_response and leaderboard_response.get('success'):
+            leaderboard = leaderboard_response.get('leaderboard', [])
+            
+            if leaderboard:
+                st.markdown("### 🥇 Top Performers")
+                for i, user in enumerate(leaderboard):
+                    rank_emoji = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else f"{i+1}."
+                    st.markdown(f"{rank_emoji} **{user['username']}** - {user['level']} ({user['total_points']} pts)")
+            else:
+                st.info("No leaderboard data available yet.")
+        else:
+            st.error("Failed to load leaderboard")
+    except Exception as e:
+        st.error(f"Error loading leaderboard: {str(e)}")
+    
+    # Streak Saver Challenge
+    st.markdown("---")
+    st.subheader("🔥 Streak Saver Challenge")
+    
+    st.markdown("""
+    **Keep your streak alive!** 🎯
+    
+    Your streak increases every time you:
+    - ✅ Create a new goal
+    - ✅ Update progress on existing goals
+    - ✅ Complete a goal
+    - ✅ Take the risk assessment
+    
+    **Current Streak:** {streak} days
+    
+    💡 **Tip:** Check in daily to maintain your streak and earn bonus points!
+    """.format(streak=gamification_data.get('current_streak', 0)))
+    
+    # Update streak button
+    if st.button("🔄 Update My Streak", type="primary"):
+        try:
+            streak_response = make_api_request("/gamification/update-streak", "POST", {}, token=token)
+            if streak_response and streak_response.get('success'):
+                st.success(f"🎉 Streak updated! Current streak: {streak_response.get('current_streak', 0)} days")
+                if streak_response.get('streak_bonus', 0) > 0:
+                    st.info(f"⭐ Bonus points earned: {streak_response.get('streak_bonus', 0)}")
+                st.rerun()
+            else:
+                st.error("Failed to update streak")
+        except Exception as e:
+            st.error(f"Error updating streak: {str(e)}")
+
+def create_goal_page():
+    """Create Goal page with goal creation form and suggestions"""
+    st.markdown('<h1 class="main-header">Create New Goal</h1>', unsafe_allow_html=True)
+    
+    session = st.session_state[SESSION_STATE_KEY]
+    token = session['access_token']
+    
+    # Goal creation form
+    st.subheader("🎯 Create Your Financial Goal")
+    
+    with st.form("create_goal_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Check for prefilled goal from suggestions
+            prefilled_goal = session.get('prefilled_goal', '')
+            goal_name = st.text_input("Goal Name", value=prefilled_goal, placeholder="e.g., Save for Building a Chalet")
+            category = st.selectbox(
+                "Category",
+                ["Emergency Fund", "Vacation", "Education", "Home Purchase", "Debt Payoff", "Investment", "Business", "Retirement", "Other"]
+            )
+            # Check for prefilled amount from suggestions
+            prefilled_amount = session.get('prefilled_goal_amount')
+            default_amount = prefilled_amount if prefilled_amount else 100.0
+            target_amount = st.number_input(
+                "Target Amount ($)",
+                min_value=100.0,
+                step=100.0,
+                format="%.2f",
+                value=default_amount
+            )
+        
+        with col2:
+            # Check for prefilled date from suggestions
+            prefilled_date = session.get('prefilled_goal_date')
+            default_date = prefilled_date if prefilled_date else date.today() + timedelta(days=365)
+            target_date = st.date_input("Target Date", value=default_date)
+            description = st.text_area("Description (Optional)", placeholder="Describe your goal...")
+        
+        # Submit button
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col2:
+            create_goal = st.form_submit_button("🎯 Create Goal", type="primary", use_container_width=True)
+        
+        if create_goal:
+            # Clear the prefilled goal, date, and amount after form submission
+            if 'prefilled_goal' in session:
+                del session['prefilled_goal']
+            if 'prefilled_goal_date' in session:
+                del session['prefilled_goal_date']
+            if 'prefilled_goal_amount' in session:
+                del session['prefilled_goal_amount']
+            
+            if goal_name and target_amount and target_date > date.today():
+                goal_data = {
+                    "name": goal_name,
+                    "category": category,
+                    "target_amount": target_amount,
+                    "start_date": date.today().isoformat(),  # Set start date to today
+                    "target_date": target_date.isoformat(),
+                    "description": description,
+                    "current_amount": 0.0
+                }
+                
+                response = make_api_request("/goals", "POST", goal_data, token=token)
+                
+                if response:
+                    st.success("🎉 Goal created successfully!")
+                    
+                    # Update streak for goal creation
+                    try:
+                        streak_response = make_api_request("/gamification/update-streak", "POST", {}, token=token)
+                        if streak_response and streak_response.get('success'):
+                            if streak_response.get('streak_bonus', 0) > 0:
+                                st.info(f"🔥 Streak updated! Bonus points: {streak_response.get('streak_bonus', 0)}")
+                    except Exception as e:
+                        st.error(f"Error updating streak: {str(e)}")
+                    
+                    st.info("Redirecting to Ongoing Goals...")
+                    time.sleep(1)
+                    st.session_state[SESSION_STATE_KEY]['current_page'] = 'Ongoing Goals'
+                    st.rerun()
+                else:
+                    st.error("❌ Failed to create goal. Please try again.")
+            else:
+                st.error("Please fill in all required fields and ensure target date is after start date.")
+    
+    st.markdown("---")
+    
+    # Goal suggestions
+    session = st.session_state[SESSION_STATE_KEY]
+    suggestions_visible = session.get('goal_suggestions_visible', True)
+    
+    # Toggle button for goal suggestions
+    if not suggestions_visible:
+        if st.button("💡 Show Goal Suggestions"):
+            session['goal_suggestions_visible'] = True
+            st.rerun()
+    else:
+        if st.button("💡 Hide Goal Suggestions"):
+            session['goal_suggestions_visible'] = False
+            st.rerun()
+    
+    # Display goal suggestions if visible
+    if suggestions_visible:
+        display_goal_suggestions(token)
+
+def ongoing_goals_page():
+    """Ongoing Goals page with table view of active goals"""
+    st.markdown('<h1 class="main-header">Ongoing Goals</h1>', unsafe_allow_html=True)
+    
+    session = st.session_state[SESSION_STATE_KEY]
+    token = session['access_token']
+    
+    # Get active goals
+    goals_response = make_api_request("/goals/ongoing", token=token)
+    goals = goals_response.get('goals', []) if goals_response else []
+    active_goals = goals  # Already filtered to active goals
+    
+    if not active_goals:
+        st.info("No active goals found. Create your first goal to get started!")
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("➕ Create Your First Goal", type="primary", use_container_width=True):
+                st.session_state[SESSION_STATE_KEY]['current_page'] = 'Create Goal'
+                st.rerun()
+        return
+    
+    # Goals table
+    st.subheader(f"🪜 Active Goals ({len(active_goals)})")
+    
+    # Create table data
+    table_data = []
+    for goal in active_goals:
+        progress_pct = (goal.get('current_amount', 0) / goal.get('target_amount', 1)) * 100
+        progress_pct = min(100, progress_pct)
+        
+        # Calculate days remaining
+        try:
+            target_date = datetime.fromisoformat(goal['target_date']).date()
+            days_remaining = (target_date - date.today()).days
+        except:
+            days_remaining = 0
+        
+        table_data.append({
+            "Goal Name": goal['name'],
+            "Category": goal['category'],
+            "Target Amount": f"${goal.get('target_amount', 0):,.2f}",
+            "Current Amount": f"${goal.get('current_amount', 0):,.2f}",
+            "Progress": f"{progress_pct:.1f}%",
+            "Days Remaining": days_remaining,
+            "Last Updated": goal.get('updated_at', 'N/A')[:10] if goal.get('updated_at') else 'N/A'
+        })
+    
+    # Display table using Streamlit columns for better alignment
+    if active_goals:
+        # Table header
+        col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
+        with col1:
+            st.markdown("**Goal Name**")
+        with col2:
+            st.markdown("**Category**")
+        with col3:
+            st.markdown("**Target Amount**")
+        with col4:
+            st.markdown("**Current Amount**")
+        with col5:
+            st.markdown("**Progress**")
+        with col6:
+            st.markdown("**Days Remaining**")
+        with col7:
+            st.markdown("**Last Updated**")
+        with col8:
+            st.markdown("**Actions**")
+        
+        st.markdown("---")
+        
+        # Display each goal as a row
+        for i, goal in enumerate(active_goals):
+            # Get goal-specific account data
+            try:
+                account_response = make_api_request(f"/goals/{goal['id']}/account", token=token)
+                account = account_response.get('account', {}) if account_response else {}
+                current_amount = account.get('balance', 0)
+            except:
+                current_amount = goal.get('current_amount', 0)
+            
+            progress_pct = (current_amount / goal.get('target_amount', 1)) * 100 if goal.get('target_amount', 0) > 0 else 0
+            progress_pct = min(100, progress_pct)
+            
+            col1, col2, col3, col4, col5, col6, col7, col8 = st.columns(8)
+            
+            with col1:
+                st.write(f"📊 {goal['name']}")
+            
+            with col2:
+                st.write(goal['category'])
+            with col3:
+                st.write(f"${goal.get('target_amount', 0):,.2f}")
+            with col4:
+                st.write(f"${current_amount:,.2f}")
+            with col5:
+                st.write(f"{progress_pct:.1f}%")
+            with col6:
+                try:
+                    target_date = datetime.fromisoformat(goal['target_date']).date()
+                    # Use last simulation date if available, otherwise use today
+                    if goal.get('last_simulation_date'):
+                        current_date = datetime.fromisoformat(goal['last_simulation_date']).date()
+                    else:
+                        current_date = date.today()
+                    days_remaining = (target_date - current_date).days
+                    st.write(days_remaining)
+                except:
+                    st.write("N/A")
+            with col7:
+                st.write(goal.get('updated_at', 'N/A')[:10] if goal.get('updated_at') else 'N/A')
+            with col8:
+                # Actions column with View and Delete buttons
+                col8_1, col8_2 = st.columns(2)
+                with col8_1:
+                    if st.button("👁️", key=f"view_{i}", help="View goal details"):
+                        st.session_state.selected_goal = goal
+                        st.rerun()
+                with col8_2:
+                    if st.button("🗑️", key=f"delete_{i}", help="Delete goal"):
+                        response = make_api_request(f"/goals/{goal['id']}", "DELETE", token=token)
+                        if response:
+                            st.success("Goal deleted!")
+                            st.rerun()
+        
+        # If a goal was selected, show its dashboard
+        if 'selected_goal' in st.session_state and st.session_state.selected_goal:
+            st.markdown("---")
+            st.subheader(f"📊 {st.session_state.selected_goal['name']} Dashboard")
+            display_individual_goal_dashboard(st.session_state.selected_goal, token)
+
+def completed_goals_page():
+    """Completed Goals page with table view of completed goals"""
+    st.markdown('<h1 class="main-header">Completed Goals</h1>', unsafe_allow_html=True)
+    
+    session = st.session_state[SESSION_STATE_KEY]
+    token = session['access_token']
+    
+    # Get completed goals
+    goals_response = make_api_request("/goals/completed", token=token)
+    goals = goals_response.get('goals', []) if goals_response else []
+    completed_goals = goals  # Already filtered to completed goals
+    
+    if not completed_goals:
+        st.info("No completed goals yet. Keep working on your active goals!")
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("🪜 View Active Goals", type="primary", use_container_width=True):
+                st.session_state[SESSION_STATE_KEY]['current_page'] = 'Ongoing Goals'
+                st.rerun()
+        return
+    
+    # Goals table
+    st.subheader(f"🏆 Completed Goals ({len(completed_goals)})")
+    
+    # Create table data
+    table_data = []
+    for goal in completed_goals:
+        final_amount = goal.get('current_amount', 0)
+        target_amount = goal.get('target_amount', 0)
+        
+        # Calculate completion date and days early/late using same logic as Days Remaining metric
+        try:
+            target_date = datetime.fromisoformat(goal['target_date']).date()
+            # Use last simulation date if available, otherwise use completion date
+            if goal.get('last_simulation_date'):
+                current_date = datetime.fromisoformat(goal['last_simulation_date']).date()
+            else:
+                current_date = datetime.fromisoformat(goal.get('completed_at', goal.get('updated_at', ''))).date()
+            
+            # Calculate days remaining (negative means early, positive means late)
+            days_remaining = (target_date - current_date).days
+            
+            # For completed goals, negative days_remaining means early completion
+            days_early = -days_remaining if days_remaining < 0 else 0
+            completion_date = current_date
+        except:
+            days_early = 0
+            completion_date = 'N/A'
+        
+        table_data.append({
+            "Goal Name": goal['name'],
+            "Category": goal['category'],
+            "Target Amount": f"${target_amount:,.2f}",
+            "Final Amount": f"${final_amount:,.2f}",
+            "Completion Date": str(completion_date),
+            "Days Early/Late": f"{days_early} days early" if days_early > 0 else f"{abs(days_remaining)} days late" if days_remaining > 0 else "On time"
+        })
+    
+    # Display table using Streamlit columns for better alignment
+    if completed_goals:
+        # Table header
+        col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+        with col1:
+            st.markdown("**Goal Name**")
+        with col2:
+            st.markdown("**Category**")
+        with col3:
+            st.markdown("**Target Amount**")
+        with col4:
+            st.markdown("**Final Amount**")
+        with col5:
+            st.markdown("**Completion Date**")
+        with col6:
+            st.markdown("**Days Early/Late**")
+        with col7:
+            st.markdown("**Actions**")
+        
+        st.markdown("---")
+        
+        # Display each goal as a row
+        selected_goal = None
+        for i, goal in enumerate(completed_goals):
+            # Get goal-specific account data
+            try:
+                account_response = make_api_request(f"/goals/{goal['id']}/account", token=token)
+                account = account_response.get('account', {}) if account_response else {}
+                final_amount = account.get('balance', goal.get('current_amount', 0))
+            except:
+                final_amount = goal.get('current_amount', 0)
+            
+            col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+            
+            with col1:
+                st.write(f"🏆 {goal['name']}")
+            
+            with col2:
+                st.write(goal['category'])
+            with col3:
+                st.write(f"${goal.get('target_amount', 0):,.2f}")
+            with col4:
+                st.write(f"${final_amount:,.2f}")
+            with col5:
+                try:
+                    completion_date = goal.get('completed_at', goal.get('updated_at', ''))
+                    if completion_date:
+                        completion_date = datetime.fromisoformat(completion_date).date()
+                        st.write(str(completion_date))
+                    else:
+                        st.write("N/A")
+                except:
+                    st.write("N/A")
+            with col6:
+                try:
+                    target_date = datetime.fromisoformat(goal['target_date']).date()
+                    completion_date = datetime.fromisoformat(goal.get('completed_at', goal.get('updated_at', ''))).date()
+                    days_early = (target_date - completion_date).days
+                    if days_early > 0:
+                        st.write(f"{days_early} days early")
+                    elif days_early < 0:
+                        st.write(f"{abs(days_early)} days late")
+                    else:
+                        st.write("On time")
+                except:
+                    st.write("N/A")
+            with col7:
+                if st.button("👁️", key=f"view_{i}", help="View goal details"):
+                    selected_goal = goal
+        
+        # If a goal was selected, show its completion dashboard
+        if selected_goal:
+            st.markdown("---")
+            st.subheader(f"🏆 {selected_goal['name']} - Completion Dashboard")
+            display_individual_goal_dashboard(selected_goal, token)
+
+def display_individual_goal_dashboard(goal: dict, token: str):
+    """Display individual goal dashboard with goal-specific simulation controls"""
+    st.markdown(f"## 🎯 {goal['name']}")
+    
+    # Get goal-specific account data
+    account_response = make_api_request(f"/goals/{goal['id']}/account", token=token)
+    account = account_response.get('account', {}) if account_response else {}
+    
+    # If no account exists, create one
+    if not account:
+        try:
+            create_response = make_api_request(f"/goals/{goal['id']}/account", "GET", {}, token=token)
+            if create_response and create_response.get('account'):
+                account = create_response.get('account', {})
+        except:
+            pass
+    
+    # Get current amount from account or fallback to goal
+    current_amount = float(account.get('balance', 0)) if account else float(goal.get('current_amount', 0))
+    target_amount = float(goal.get('target_amount', 0))
+    
+    # Calculate progress percentage
+    if target_amount > 0:
+        progress_pct = min(100, (current_amount / target_amount) * 100)
+    else:
+        progress_pct = 0
+    
+    # Display goal-specific progress bars
+    st.markdown("#### 📊 Progress Visualization")
+    
+    # Goal Timeline progress bar
+    try:
+        start_date = datetime.fromisoformat(goal['start_date']).date()
+        target_date = datetime.fromisoformat(goal['target_date']).date()
+        
+        # Use last simulation date if available, otherwise use today
+        if goal.get('last_simulation_date'):
+            current_date = datetime.fromisoformat(goal['last_simulation_date']).date()
+        else:
+            current_date = date.today()
+        
+        # Calculate timeline progress
+        total_days = (target_date - start_date).days
+        days_passed = (current_date - start_date).days
+        timeline_progress = min(100, max(0, (days_passed / total_days) * 100)) if total_days > 0 else 0
+        
+        timeline_progress_html = f"""
+        <div class="progress-bar-container">
+            <div class="progress-bar-label">📅 GOAL TIMELINE</div>
+            <div class="progress-bar-wrapper">
+                <div class="progress-bar">
+                    <div class="progress-fill timeline" style="width: {timeline_progress}%"></div>
+                    <div class="progress-value" style="left: {timeline_progress}%">
+                        {days_passed} days
+                    </div>
+                </div>
+                <div class="progress-endpoints">
+                    <div class="progress-endpoint start">
+                        <strong>{start_date.strftime('%Y-%m-%d')}</strong><br>
+                        START DATE
+                    </div>
+                    <div class="progress-endpoint middle">
+                        <strong>{timeline_progress:.1f}%</strong><br>
+                        {days_passed} days<br>
+                        ELAPSED
+                    </div>
+                    <div class="progress-endpoint end">
+                        <strong>{target_date.strftime('%Y-%m-%d')}</strong><br>
+                        TARGET DATE
+                    </div>
+                </div>
+            </div>
+        </div>
+        """
+        st.markdown(timeline_progress_html, unsafe_allow_html=True)
+    except:
+        st.warning("Could not display timeline progress")
+    
+    # Amount progress bar
+    amount_progress_html = f"""
+    <div class="progress-bar-container">
+        <div class="progress-bar-label">💰 GOAL AMOUNT</div>
+        <div class="progress-bar-wrapper">
+            <div class="progress-bar">
+                <div class="progress-fill amount" style="width: {progress_pct}%"></div>
+                <div class="progress-value" style="left: {progress_pct}%">
+                    ${current_amount:,.0f}
+                </div>
+            </div>
+            <div class="progress-endpoints">
+                <div class="progress-endpoint start">
+                    <strong>$0</strong><br>
+                    START
+                </div>
+                <div class="progress-endpoint middle">
+                    <strong>{progress_pct:.1f}%</strong><br>
+                    ${current_amount:,.0f}<br>
+                    ACHIEVED
+                </div>
+                <div class="progress-endpoint end">
+                    <strong>${target_amount:,.0f}</strong><br>
+                    TARGET
+                </div>
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(amount_progress_html, unsafe_allow_html=True)
+    
+    # Display goal metrics
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Current Amount", f"${current_amount:,.2f}")
+    with col2:
+        st.metric("Target Amount", f"${target_amount:,.2f}")
+    with col3:
+        st.metric("Progress", f"{progress_pct:.1f}%")
+    with col4:
+        try:
+            target_date = datetime.fromisoformat(goal['target_date']).date()
+            # Use last simulation date if available, otherwise use today
+            if goal.get('last_simulation_date'):
+                current_date = datetime.fromisoformat(goal['last_simulation_date']).date()
+            else:
+                current_date = date.today()
+            days_remaining = (target_date - current_date).days
+            st.metric("Days Remaining", days_remaining)
+        except:
+            st.metric("Days Remaining", "N/A")
+    
+    # Personalized Advice Section - only show when conditions are met
+    goal_status = goal.get('status', 'active')
+    simulated_until = goal.get('last_simulation_date', goal.get('start_date', ''))
+    start_date = goal.get('start_date', '')
+    
+    # Check conditions: current amount > 0, simulated until != start date, goal is active
+    show_advice = (
+        current_amount > 0 and 
+        simulated_until != start_date and 
+        goal_status != 'completed'
+    )
+    
+    if show_advice:
+        st.markdown("---")
+        st.subheader("💡 Personalized Advice")
+        st.markdown("*Tailored financial insights to help you reach your goals.*")
+        
+        # Part 1: Analyze and compare Goal Timeline vs Goal Amount progress
+        timeline_progress_pct = timeline_progress if 'timeline_progress' in locals() else 0
+        amount_progress_pct = progress_pct
+        
+        # Calculate the difference
+        progress_difference = amount_progress_pct - timeline_progress_pct
+        
+        if progress_difference > 5:
+            st.success(f"🎉 **Excellent progress!** You're ahead of your timeline by {progress_difference:.1f}%. Keep up the great work!")
+        elif progress_difference > 0:
+            st.info(f"✅ **Good job!** You're on track and slightly ahead by {progress_difference:.1f}%. You're doing well!")
+        elif progress_difference > -5:
+            st.warning(f"⚠️ **Slightly behind** by {abs(progress_difference):.1f}%. This is manageable - consider increasing your savings rate slightly.")
+        else:
+            st.error(f"🚨 **Behind schedule** by {abs(progress_difference):.1f}%. Consider reviewing your budget and increasing your monthly contributions.")
+        
+        # Part 2: LLM-generated personalized advice based on user profile and transactions
+        try:
+            with st.spinner("Generating personalized advice..."):
+                # Get user's recent transactions for this goal
+                transactions_response = make_api_request(f"/goals/{goal['id']}/transactions?limit=10", token=token)
+                recent_transactions = transactions_response.get('transactions', []) if transactions_response else []
+                
+                # Get user's assessment data for context
+                assessment_response = make_api_request("/assessment/current", token=token)
+                assessment_data = assessment_response.get('assessment', {}) if assessment_response else {}
+                
+                # Prepare context for LLM
+                advice_context = {
+                    'goal_name': goal['name'],
+                    'goal_category': goal['category'],
+                    'current_amount': current_amount,
+                    'target_amount': target_amount,
+                    'progress_percentage': amount_progress_pct,
+                    'timeline_progress': timeline_progress_pct,
+                    'days_remaining': days_remaining if 'days_remaining' in locals() else 0,
+                    'recent_transactions': recent_transactions[:5],  # Last 5 transactions
+                    'user_risk_profile': assessment_data.get('risk_label', 'Balanced'),
+                    'savings_rate': assessment_data.get('answers', {}).get('savings_rate', 10)
+                }
+                
+                # Generate personalized advice using LLM
+                advice_response = make_api_request("/goals/personalized-advice", "POST", advice_context, token=token)
+                
+                if advice_response and advice_response.get('advice'):
+                    st.markdown("### 🎯 Smart Recommendations")
+                    # Display advice with consistent font styling
+                    st.markdown(f"""
+                    <div style="font-family: 'Source Sans Pro', sans-serif; font-size: 16px; line-height: 1.5; color: #333;">
+                        {advice_response['advice']}
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("💡 Complete your risk assessment to get personalized financial advice!")
+                    
+        except Exception as e:
+            st.info("💡 Personalized advice will be available once you have some transaction history.")
+    else:
+        # Show message when conditions are not met
+        if current_amount == 0:
+            st.info("💡 Start simulating progress to get personalized advice!")
+        elif simulated_until == start_date:
+            st.info("💡 Simulate some progress to get personalized advice!")
+        elif goal_status == 'completed':
+            st.info("🎉 Congratulations! This goal is completed.")
+    
+    # Goal-specific simulation controls - only show for ongoing goals
+    if goal_status != 'completed':
+        st.markdown("---")
+        st.subheader("🔄 Goal-Specific Simulation")
+    
+        col1, col2, col3 = st.columns([1, 1, 1])
+        
+        with col1:
+            # Show the last simulation date or goal start date
+            if goal.get('last_simulation_date'):
+                simulated_until = goal.get('last_simulation_date')
+            else:
+                simulated_until = goal.get('start_date', 'Not simulated')
+            st.metric("Simulated Until", simulated_until)
+        
+        with col2:
+            months_to_simulate = st.selectbox(
+                "Months to simulate",
+                [1, 3, 6, 12],
+                index=0,
+                key=f"months_{goal['id']}",
+                help="Select how many months of mock data to generate for this goal"
+            )
+        
+        with col3:
+            st.markdown('<div class="button-align">', unsafe_allow_html=True)
+            if st.button(f"🔄 Simulate Progress", key=f"simulate_{goal['id']}", type="primary", use_container_width=True):
+                with st.spinner(f"Generating mock transactions for {goal['name']}..."):
+                    try:
+                        # Simulate progress for this specific goal
+                        simulate_response = make_api_request(f"/goals/{goal['id']}/simulate", "POST", {
+                            "months_to_simulate": months_to_simulate
+                        }, token=token)
+                        
+                        if simulate_response and simulate_response.get('success'):
+                            transactions_generated = simulate_response.get('transactions_generated', 0)
+                            months_simulated = simulate_response.get('months_simulated', 0)
+                            progress_until = simulate_response.get('progress_until', 'Unknown')
+                            current_balance = simulate_response.get('current_balance', 0)
+                            is_completed = simulate_response.get('is_completed', False)
+                            goal_status = simulate_response.get('goal_status', 'active')
+                            
+                            st.success(f"✅ Generated {transactions_generated} transactions for {months_simulated} month(s)!")
+                            st.info(f"📅 Progress tracked until: {progress_until}")
+                            st.info(f"💰 Current balance: ${current_balance:,.2f}")
+                            
+                            # Check if goal is completed
+                            if is_completed:
+                                st.balloons()
+                                st.success("🎉 Congratulations! You've completed your goal! 🎊")
+                                
+                                # Check for milestones
+                                try:
+                                    milestone_response = make_api_request("/gamification/check-milestones", "POST", {
+                                        "goal_amount": current_balance
+                                    }, token=token)
+                                    if milestone_response and milestone_response.get('success'):
+                                        new_milestones = milestone_response.get('new_milestones', [])
+                                        if new_milestones:
+                                            st.success("🏆 New Milestone Achieved!")
+                                            for milestone in new_milestones:
+                                                st.info(f"🎉 {milestone['level']} - {milestone['points']} points earned!")
+                                except Exception as e:
+                                    st.error(f"Error checking milestones: {str(e)}")
+                                
+                                # Update the selected goal in session state with new data
+                                if 'selected_goal' in st.session_state:
+                                    st.session_state.selected_goal['current_amount'] = current_balance
+                                    st.session_state.selected_goal['status'] = goal_status
+                                    st.session_state.selected_goal['last_simulation_date'] = progress_until
+                                
+                                # Clear selected goal and navigate to Completed Goals page
+                                if 'selected_goal' in st.session_state:
+                                    del st.session_state.selected_goal
+                                
+                                # Navigate to Completed Goals page
+                                time.sleep(2)
+                                st.session_state[SESSION_STATE_KEY]['current_page'] = "Completed Goals"
+                                st.rerun()
+                            else:
+                                # Update the selected goal in session state with new data
+                                if 'selected_goal' in st.session_state:
+                                    st.session_state.selected_goal['current_amount'] = current_balance
+                                    st.session_state.selected_goal['last_simulation_date'] = progress_until
+                                
+                                # Update streak for progress simulation
+                                try:
+                                    streak_response = make_api_request("/gamification/update-streak", "POST", {}, token=token)
+                                    if streak_response and streak_response.get('success'):
+                                        if streak_response.get('streak_bonus', 0) > 0:
+                                            st.info(f"🔥 Progress updated! Streak bonus: {streak_response.get('streak_bonus', 0)} points")
+                                except Exception as e:
+                                    st.error(f"Error updating streak: {str(e)}")
+                                
+                                # Refresh the page to show updated data
+                                time.sleep(1)
+                                st.rerun()
+                        else:
+                            error_msg = simulate_response.get('error', 'Unknown error') if simulate_response else 'Failed to connect to API'
+                            st.error(f"❌ Failed to simulate progress: {error_msg}")
+                    except Exception as e:
+                        st.error(f"❌ Error simulating progress: {str(e)}")
+            st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Show recent transactions for this goal
+    try:
+        # Force refresh transactions by adding a timestamp parameter
+        transactions_response = make_api_request(f"/goals/{goal['id']}/transactions?t={int(time.time())}", token=token)
+        transactions = transactions_response.get('transactions', []) if transactions_response else []
+        
+        if transactions:
+            st.markdown("---")
+            st.subheader("📈 Recent Transactions")
+            
+            # Show last 10 transactions (already ordered by newest first from backend)
+            recent_transactions = transactions[:10] if len(transactions) > 10 else transactions
+            
+            for transaction in recent_transactions:
+                col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+                
+                with col1:
+                    st.write(f"**{transaction.get('description', 'Transaction')}**")
+                with col2:
+                    amount = transaction.get('amount', 0)
+                    if transaction.get('transaction_type') == 'income':
+                        st.write(f"💰 +${amount:,.2f}")
+                    else:
+                        st.write(f"💸 -${amount:,.2f}")
+                with col3:
+                    st.write(transaction.get('category', 'N/A'))
+                with col4:
+                    st.write(transaction.get('date', 'N/A')[:10])
+    except:
+        st.info("No transactions available for this goal yet.")
+    
+    # Back button
+    st.markdown("---")
+    if st.button("← Back to Goals List", key=f"back_{goal['id']}"):
+        if 'selected_goal' in st.session_state:
+            del st.session_state.selected_goal
+        st.rerun()
 
 if __name__ == "__main__":
     main()

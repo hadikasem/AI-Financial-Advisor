@@ -163,17 +163,45 @@ class MockProgressService:
             is_positive = random.random() < 0.7
             
             if is_positive:
-                # Income/savings transactions
-                amount = random.uniform(50, 2000)
-                transaction_type = random.choice(['income', 'transfer'])
-                category = random.choice(['salary', 'bonus', 'investment', 'savings', 'refund'])
-                description = f"Mock {category.title()}"
+                # Income/savings transactions with realistic names
+                income_templates = [
+                    ("Monthly Salary - Company ABC", "Income", 2000, 5000),
+                    ("Freelancer Payment - Upwork", "Income", 300, 1500),
+                    ("Quarterly Bonus", "Income", 1000, 3000),
+                    ("Investment Dividend", "Savings & Investments", 50, 500),
+                    ("Side Hustle Income", "Income", 200, 800),
+                    ("Tax Refund", "Income", 500, 2000),
+                    ("Rental Income", "Income", 800, 2000),
+                    ("Consulting Fee", "Income", 400, 1200),
+                    ("Automatic Savings Transfer", "Savings & Investments", 200, 800),
+                    ("Emergency Fund Contribution", "Savings & Investments", 300, 1000)
+                ]
+                name, category, min_amount, max_amount = random.choice(income_templates)
+                amount = random.uniform(min_amount, max_amount)
+                transaction_type = 'income'
+                description = name
             else:
-                # Expense transactions
-                amount = -random.uniform(20, 800)
+                # Expense transactions with realistic names
+                expense_templates = [
+                    ("Starbucks Coffee", "Food & Beverage", 5, 15),
+                    ("Uber Ride - Airport", "Transportation", 20, 80),
+                    ("Electricity Bill - October", "Bills & Utilities", 80, 200),
+                    ("Netflix Subscription", "Entertainment", 15, 20),
+                    ("Zara Online Purchase", "Shopping", 30, 150),
+                    ("Gym Membership Renewal", "Health & Fitness", 40, 80),
+                    ("Weekend Dinner - Sushi Bar", "Food & Beverage", 40, 120),
+                    ("Gas Station Payment", "Transportation", 30, 80),
+                    ("Grocery Store - Carrefour", "Groceries & Food", 60, 200),
+                    ("Pharmacy - Cold Medicine", "Health & Fitness", 15, 50),
+                    ("Cinema Tickets", "Entertainment", 20, 40),
+                    ("Phone Bill - Zain", "Bills & Utilities", 40, 100),
+                    ("Amazon Order - Headphones", "Shopping", 50, 300),
+                    ("Restaurant - Pizza Hut", "Food & Beverage", 25, 80)
+                ]
+                name, category, min_amount, max_amount = random.choice(expense_templates)
+                amount = -random.uniform(min_amount, max_amount)
                 transaction_type = 'expense'
-                category = random.choice(['food', 'transportation', 'entertainment', 'utilities', 'shopping'])
-                description = f"Mock {category.title()} Expense"
+                description = name
             
             # Create transaction
             transaction = Transaction(

@@ -116,7 +116,7 @@ class NotificationService:
         if not existing:
             title = f"📈 Weekly Progress Update: {goal.name}"
             message = f"""
-            Progress: {progress_data['progress_pct']:.1f}%
+            Progress: {float(progress_data['progress_pct']):.1f}%
             Status: {progress_data['pacing_status'].title()}
             {progress_data['pacing_detail']}
             
