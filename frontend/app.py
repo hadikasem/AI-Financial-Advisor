@@ -359,6 +359,10 @@ def display_help_chat(question_id: str, question_text: str):
     """Display collapsible help chat box"""
     session = st.session_state[SESSION_STATE_KEY]
     
+    # Initialize help_chat_open if it doesn't exist (backward compatibility)
+    if 'help_chat_open' not in session:
+        session['help_chat_open'] = False
+    
     # Check if we need to reset chat for new question
     if session.get('current_question_id') != question_id:
         session['help_chat_messages'] = []
@@ -367,7 +371,7 @@ def display_help_chat(question_id: str, question_text: str):
     
     # Help chat toggle button
     if st.button("❓ Get Help", key=f"help_{question_id}"):
-        session['help_chat_open'] = not session['help_chat_open']
+        session['help_chat_open'] = not session.get('help_chat_open', False)
         st.rerun()
     
     # Display chat interface if open
