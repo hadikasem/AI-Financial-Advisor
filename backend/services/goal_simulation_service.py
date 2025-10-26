@@ -121,6 +121,12 @@ class GoalSimulationService:
         
         # Check if goal is completed
         is_completed = float(account.balance) >= float(goal.target_amount)
+        
+        # Check if simulation end date exceeds target date
+        target_date_exceeded = False
+        if simulation_end_date >= goal.target_date:
+            target_date_exceeded = True
+        
         if is_completed:
             goal.status = 'completed'
             # Store the simulation end date as completed_at (not current datetime)
@@ -140,7 +146,9 @@ class GoalSimulationService:
             'progress_until': simulation_end_date.isoformat(),
             'current_balance': float(account.balance),
             'is_completed': is_completed,
-            'goal_status': goal.status
+            'goal_status': goal.status,
+            'target_date_exceeded': target_date_exceeded,
+            'goal_target_date': goal.target_date.isoformat()
         }
     
     def _generate_mock_transaction(self, transaction_date: date, goal_category: str) -> Dict[str, Any]:

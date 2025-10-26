@@ -244,6 +244,115 @@ st.markdown("""
     .goal-row:hover {
         background-color: #f0f2f6;
     }
+    /* Modal overlay styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        z-index: 9999;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow-y: auto;
+    }
+    .modal-container {
+        background-color: white;
+        border-radius: 15px;
+        padding: 2rem;
+        max-width: 800px;
+        width: 90%;
+        max-height: 90vh;
+        margin: auto;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        position: relative;
+        overflow-y: auto;
+    }
+    .modal-header {
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 15px 15px 0 0;
+        margin: -2rem -2rem 2rem -2rem;
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+    .modal-content {
+        padding: 1rem 0;
+    }
+    .modal-status-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin: 1.5rem 0;
+    }
+    .modal-status-box {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #dee2e6;
+    }
+    .modal-status-box h4 {
+        margin-top: 0;
+        color: #495057;
+        font-size: 1.1rem;
+    }
+    .modal-status-box ul {
+        margin: 0.5rem 0;
+        padding-left: 1.5rem;
+    }
+    .modal-status-box li {
+        margin: 0.5rem 0;
+        color: #6c757d;
+    }
+    .modal-progress-metric {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #1f77b4;
+        text-align: center;
+        margin: 0.5rem 0;
+    }
+    .modal-form-section {
+        background: linear-gradient(135deg, #fff3cd, #ffe69c);
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #ffc107;
+        margin: 1.5rem 0;
+    }
+    .modal-warning {
+        background-color: #fff3cd;
+        border: 2px solid #ffc107;
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 1rem 0;
+        font-weight: bold;
+        color: #856404;
+    }
+    .modal-submit-button {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1.2rem;
+        font-weight: bold;
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        margin-top: 1rem;
+        transition: all 0.3s ease;
+    }
+    .modal-submit-button:hover {
+        background: linear-gradient(135deg, #218838, #1abc9c);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    /* Make main content non-interactive when modal is open */
+    .modal-open {
+        pointer-events: none;
+        opacity: 0.5;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -2406,6 +2515,98 @@ def completed_goals_page():
 
 def display_individual_goal_dashboard(goal: dict, token: str):
     """Display individual goal dashboard with goal-specific simulation controls"""
+    
+    # Ensure we're using the latest goal data from session state
+    if 'selected_goal' in st.session_state and st.session_state.selected_goal.get('id') == goal.get('id'):
+        goal = st.session_state.selected_goal
+    
+    # MANDATORY MODAL: Check if target date exceeded and show blocking modal
+    if st.session_state.get('show_extend_modal', False) and st.session_state.get('exceeded_goal_data', {}).get('goal_id') == goal['id']:
+        exceeded_data = st.session_state.get('exceeded_goal_data', {})
+        current_target = datetime.fromisoformat(exceeded_data.get('goal_target_date', date.today().isoformat())).date()
+        suggested_date = current_target + timedelta(days=90)
+        progress_pct = (exceeded_data.get('current_balance', 0) / exceeded_data.get('target_amount', 1) * 100) if exceeded_data.get('target_amount', 0) > 0 else 0
+        
+        # Clear the page and show ONLY the modal
+        st.markdown("# ⏰ REQUIRED: Extend Your Goal Timeline ⏰")
+        st.error("⚠️ Your simulation has exceeded your goal's target date. You must extend your goal timeline to continue.")
+        st.markdown("**This action is required to proceed.**")
+        
+        st.markdown("---")
+        
+        # Display current status in columns
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### 📊 Current Status")
+            st.markdown(f"""
+            - **Goal:** {exceeded_data.get('goal_name', '')}
+            - **Progress Until:** {exceeded_data.get('progress_until', '')}
+            - **Target Date:** {exceeded_data.get('goal_target_date', '')}
+            - **Current Balance:** ${exceeded_data.get('current_balance', 0):,.2f}
+            - **Target Amount:** ${exceeded_data.get('target_amount', 0):,.2f}
+            """)
+            st.metric("Progress", f"{progress_pct:.1f}%")
+        
+        with col2:
+            st.markdown("### 📅 Recommended Extension")
+            st.markdown(f"""
+            - **Current Target:** {exceeded_data.get('goal_target_date', '')}
+            - **Suggested Date:** {suggested_date.strftime('%Y-%m-%d')}
+            - **Extra Time:** 90 days (3 months)
+            """)
+        
+        st.markdown("---")
+        
+        st.markdown("### 🔒 Extend Goal Target Date (Required)")
+        st.warning("⚠️ You cannot proceed without extending your goal timeline. Please select a new target date below.")
+        
+        # Form to extend goal
+        with st.form(f"extend_goal_modal_{goal['id']}"):
+            new_target_date = st.date_input(
+                "New Target Date",
+                value=suggested_date,
+                min_value=current_target + timedelta(days=1),
+                help="Select a new target date. This cannot be earlier than your original target date."
+            )
+            
+            extend_submit = st.form_submit_button("✅ Extend Goal & Continue", type="primary", use_container_width=True)
+            
+            if extend_submit:
+                try:
+                    if new_target_date <= current_target:
+                        st.error("New target date must be after the original target date!")
+                    else:
+                        extend_response = make_api_request(f"/goals/{goal['id']}/extend", "POST", {
+                            "new_target_date": new_target_date.isoformat()
+                        }, token=token)
+                        
+                        if extend_response:
+                            st.success(f"✅ Goal target date extended to {new_target_date}")
+                            
+                            # Clear modal flags
+                            st.session_state['show_extend_modal'] = False
+                            st.session_state['exceeded_goal_data'] = {}
+                            
+                            # Update the goal in session state with the updated goal from extend response
+                            if 'selected_goal' in st.session_state and extend_response.get('goal'):
+                                st.session_state.selected_goal = extend_response.get('goal')
+                            elif 'selected_goal' in st.session_state:
+                                # Fallback: fetch fresh goal data
+                                updated_goal_response = make_api_request(f"/goals/{goal['id']}", token=token)
+                                if updated_goal_response:
+                                    st.session_state.selected_goal = updated_goal_response
+                            
+                            # Refresh the page to show updated timeline
+                            time.sleep(1.5)
+                            st.rerun()
+                        else:
+                            st.error("Failed to extend goal date. Please try again.")
+                except Exception as e:
+                    st.error(f"Error extending goal: {str(e)}")
+        
+        # Stop rendering - this ensures ONLY the modal appears, nothing else
+        st.stop()
+    
     st.markdown(f"## 🎯 {goal['name']}")
     
     # Get goal-specific account data
@@ -2719,61 +2920,80 @@ def display_individual_goal_dashboard(goal: dict, token: str):
                             is_completed = simulate_response.get('is_completed', False)
                             goal_status = simulate_response.get('goal_status', 'active')
                             
+                            # Check if target date exceeded
+                            target_date_exceeded = simulate_response.get('target_date_exceeded', False)
+                            
                             st.success(f"✅ Generated {transactions_generated} transactions for {months_simulated} month(s)!")
                             st.info(f"📅 Progress tracked until: {progress_until}")
                             st.info(f"💰 Current balance: ${current_balance:,.2f}")
                             
-                            # Check if goal is completed
-                            if is_completed:
-                                st.balloons()
-                                st.success("🎉 Congratulations! You've completed your goal! 🎊")
-                                
-                                # Check for milestones
-                                try:
-                                    milestone_response = make_api_request("/gamification/check-milestones", "POST", {
-                                        "goal_amount": current_balance
-                                    }, token=token)
-                                    if milestone_response and milestone_response.get('success'):
-                                        new_milestones = milestone_response.get('new_milestones', [])
-                                        if new_milestones:
-                                            st.success("🏆 New Milestone Achieved!")
-                                            for milestone in new_milestones:
-                                                st.info(f"🎉 {milestone['level']} - {milestone['points']} points earned!")
-                                except Exception as e:
-                                    st.error(f"Error checking milestones: {str(e)}")
-                                
-                                # Update the selected goal in session state with new data
-                                if 'selected_goal' in st.session_state:
-                                    st.session_state.selected_goal['current_amount'] = current_balance
-                                    st.session_state.selected_goal['status'] = goal_status
-                                    st.session_state.selected_goal['last_simulation_date'] = progress_until
-                                
-                                # Clear selected goal and navigate to Completed Goals page
-                                if 'selected_goal' in st.session_state:
-                                    del st.session_state.selected_goal
-                                
-                                # Navigate to Completed Goals page
-                                time.sleep(2)
-                                st.session_state[SESSION_STATE_KEY]['current_page'] = "Completed Goals"
+                            # If target date exceeded and goal not completed, show mandatory extension modal
+                            if target_date_exceeded and not is_completed:
+                                st.session_state['show_extend_modal'] = True
+                                st.session_state['exceeded_goal_data'] = {
+                                    'goal_id': goal['id'],
+                                    'goal_name': goal['name'],
+                                    'progress_until': progress_until,
+                                    'current_balance': current_balance,
+                                    'goal_target_date': simulate_response.get('goal_target_date'),
+                                    'target_amount': goal['target_amount']
+                                }
+                                st.error("⚠️ **Your goal target date has been exceeded! You must extend your timeline to continue.**")
+                                # Trigger rerun to show the modal
+                                time.sleep(0.5)
                                 st.rerun()
-                            else:
-                                # Update the selected goal in session state with new data
-                                if 'selected_goal' in st.session_state:
-                                    st.session_state.selected_goal['current_amount'] = current_balance
-                                    st.session_state.selected_goal['last_simulation_date'] = progress_until
-                                
-                                # Update streak for progress simulation
-                                try:
-                                    streak_response = make_api_request("/gamification/update-streak", "POST", {}, token=token)
-                                    if streak_response and streak_response.get('success'):
-                                        if streak_response.get('streak_bonus', 0) > 0:
-                                            st.info(f"🔥 Progress updated! Streak bonus: {streak_response.get('streak_bonus', 0)} points")
-                                except Exception as e:
-                                    st.error(f"Error updating streak: {str(e)}")
-                                
-                                # Refresh the page to show updated data
-                                time.sleep(1)
-                                st.rerun()
+                            elif not target_date_exceeded:
+                                # Only process normally if target date not exceeded
+                                if is_completed:
+                                    st.balloons()
+                                    st.success("🎉 Congratulations! You've completed your goal! 🎊")
+                                    
+                                    # Check for milestones
+                                    try:
+                                        milestone_response = make_api_request("/gamification/check-milestones", "POST", {
+                                            "goal_amount": current_balance
+                                        }, token=token)
+                                        if milestone_response and milestone_response.get('success'):
+                                            new_milestones = milestone_response.get('new_milestones', [])
+                                            if new_milestones:
+                                                st.success("🏆 New Milestone Achieved!")
+                                                for milestone in new_milestones:
+                                                    st.info(f"🎉 {milestone['level']} - {milestone['points']} points earned!")
+                                    except Exception as e:
+                                        st.error(f"Error checking milestones: {str(e)}")
+                                    
+                                    # Update the selected goal in session state with new data
+                                    if 'selected_goal' in st.session_state:
+                                        st.session_state.selected_goal['current_amount'] = current_balance
+                                        st.session_state.selected_goal['status'] = goal_status
+                                        st.session_state.selected_goal['last_simulation_date'] = progress_until
+                                    
+                                    # Clear selected goal and navigate to Completed Goals page
+                                    if 'selected_goal' in st.session_state:
+                                        del st.session_state.selected_goal
+                                    
+                                    # Navigate to Completed Goals page
+                                    time.sleep(2)
+                                    st.session_state[SESSION_STATE_KEY]['current_page'] = "Completed Goals"
+                                    st.rerun()
+                                else:
+                                    # Update the selected goal in session state with new data
+                                    if 'selected_goal' in st.session_state:
+                                        st.session_state.selected_goal['current_amount'] = current_balance
+                                        st.session_state.selected_goal['last_simulation_date'] = progress_until
+                                    
+                                    # Update streak for progress simulation
+                                    try:
+                                        streak_response = make_api_request("/gamification/update-streak", "POST", {}, token=token)
+                                        if streak_response and streak_response.get('success'):
+                                            if streak_response.get('streak_bonus', 0) > 0:
+                                                st.info(f"🔥 Progress updated! Streak bonus: {streak_response.get('streak_bonus', 0)} points")
+                                    except Exception as e:
+                                        st.error(f"Error updating streak: {str(e)}")
+                                    
+                                    # Refresh the page to show updated data
+                                    time.sleep(1)
+                                    st.rerun()
                         else:
                             error_msg = simulate_response.get('error', 'Unknown error') if simulate_response else 'Failed to connect to API'
                             st.error(f"❌ Failed to simulate progress: {error_msg}")
