@@ -980,6 +980,23 @@ def update_streak():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/gamification/simulate-next-day', methods=['POST'])
+@jwt_required()
+def simulate_next_day():
+    """Simulate user login on the next day (for testing)"""
+    try:
+        user_id = get_jwt_identity()
+        gamification_service = GamificationService()
+        result = gamification_service.simulate_next_day_streak(user_id)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            return jsonify({'error': result['error']}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/gamification/check-milestones', methods=['POST'])
 @jwt_required()
 def check_milestones():

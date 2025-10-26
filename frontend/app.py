@@ -1979,6 +1979,13 @@ def gamification_page():
     st.markdown("---")
     st.subheader("🔥 Streak Saver Challenge")
     
+    # Get current streak
+    current_streak = gamification_data.get('current_streak', 0)
+    
+    # Calculate bonus points for next consecutive login
+    next_streak = current_streak + 1
+    next_bonus = min(next_streak * 2, 20)
+    
     st.markdown("""
     **Keep your streak alive!** 🎯
     
@@ -1991,21 +1998,29 @@ def gamification_page():
     **Current Streak:** {streak} days
     
     💡 **Tip:** Check in daily to maintain your streak and earn bonus points!
-    """.format(streak=gamification_data.get('current_streak', 0)))
     
-    # Update streak button
-    if st.button("🔄 Update My Streak", type="primary"):
+    📊 **Login Streak Bonus Points:**
+    - Your next consecutive login will add **{bonus} points** to your total
+    - Current streak: {streak} days
+    - Next login will make it: {next_streak} days streak → +{bonus} points
+    - Maximum bonus: 20 points per day
+    """.format(streak=current_streak, bonus=next_bonus, next_streak=next_streak))
+    
+    # Simulate next day button (for testing)
+    if st.button("🔄 Simulate Next Day Login", type="primary"):
         try:
-            streak_response = make_api_request("/gamification/update-streak", "POST", {}, token=token)
+            streak_response = make_api_request("/gamification/simulate-next-day", "POST", {}, token=token)
             if streak_response and streak_response.get('success'):
-                st.success(f"🎉 Streak updated! Current streak: {streak_response.get('current_streak', 0)} days")
+                simulated_date = streak_response.get('simulated_date', 'Unknown')
+                st.success(f"✅ Simulated login for: {simulated_date}")
+                st.success(f"🔥 Current streak: {streak_response.get('current_streak', 0)} days")
                 if streak_response.get('streak_bonus', 0) > 0:
                     st.info(f"⭐ Bonus points earned: {streak_response.get('streak_bonus', 0)}")
                 st.rerun()
             else:
-                st.error("Failed to update streak")
+                st.error("Failed to simulate next day")
         except Exception as e:
-            st.error(f"Error updating streak: {str(e)}")
+            st.error(f"Error simulating: {str(e)}")
 
 def create_goal_page():
     """Create Goal page with goal creation form and suggestions"""
@@ -2566,6 +2581,7 @@ def display_individual_goal_dashboard(goal: dict, token: str):
                 
                 # Prepare context for LLM
                 advice_context = {
+                    'goal_id': goal['id'],  # Add goal_id for transaction querying
                     'goal_name': goal['name'],
                     'goal_category': goal['category'],
                     'current_amount': current_amount,
@@ -2573,7 +2589,7 @@ def display_individual_goal_dashboard(goal: dict, token: str):
                     'progress_percentage': amount_progress_pct,
                     'timeline_progress': timeline_progress_pct,
                     'days_remaining': days_remaining if 'days_remaining' in locals() else 0,
-                    'recent_transactions': recent_transactions[:5],  # Last 5 transactions
+                    'recent_transactions': recent_transactions[:5],  # Last 5 transactions (legacy, now using 30-day query)
                     'user_risk_profile': assessment_data.get('risk_label', 'Balanced'),
                     'savings_rate': assessment_data.get('answers', {}).get('savings_rate', 10)
                 }

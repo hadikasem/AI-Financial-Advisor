@@ -110,6 +110,52 @@ class GamificationService:
             db.session.rollback()
             return {"success": False, "error": str(e)}
     
+    def simulate_next_day_streak(self, user_id: str) -> Dict[str, Any]:
+        """
+        Simulate streak as if user logged in the next day (for testing)
+        This advances last_activity_date by 1 day to test streak logic
+        """
+        user = User.query.get(user_id)
+        if not user:
+            return {"success": False, "error": "User not found"}
+        
+        # Get the current last_activity_date, or use today if none
+        if not user.last_activity_date:
+            # First time - start with today
+            user.last_activity_date = date.today()
+            user.current_streak = 1
+            streak_bonus = 0
+        else:
+            # Simulate "next day" - add 1 day to last_activity_date
+            user.last_activity_date += timedelta(days=1)
+            
+            # Check if this represents consecutive days
+            # Since we're advancing by 1 day, this simulates consecutive login
+            user.current_streak += 1
+            streak_bonus = min(user.current_streak * 2, 20)  # Bonus points for streaks
+        
+        # Award streak bonus points
+        if streak_bonus > 0:
+            self._award_points(user, streak_bonus)
+        
+        # Update user level
+        self._update_user_level(user)
+        
+        try:
+            db.session.commit()
+            return {
+                "success": True,
+                "current_streak": user.current_streak,
+                "streak_bonus": streak_bonus,
+                "total_points": user.total_points,
+                "level": user.level,
+                "simulated_date": user.last_activity_date.isoformat(),
+                "message": f"Streak simulated for {user.last_activity_date}"
+            }
+        except Exception as e:
+            db.session.rollback()
+            return {"success": False, "error": str(e)}
+    
     def get_user_gamification_data(self, user_id: str) -> Dict[str, Any]:
         """Get all gamification data for a user"""
         user = User.query.get(user_id)
