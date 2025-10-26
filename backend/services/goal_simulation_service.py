@@ -121,7 +121,13 @@ class GoalSimulationService:
         is_completed = float(account.balance) >= float(goal.target_amount)
         if is_completed:
             goal.status = 'completed'
-            goal.completed_at = datetime.utcnow()
+            # Store the simulation end date as completed_at (not current datetime)
+            # This ensures consistency between simulation date and completion date
+            if simulation_end_date:
+                # Convert date to datetime for consistency with completed_at field
+                goal.completed_at = datetime.combine(simulation_end_date, datetime.min.time())
+            else:
+                goal.completed_at = datetime.utcnow()
         
         db.session.commit()
         

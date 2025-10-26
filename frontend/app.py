@@ -1476,8 +1476,23 @@ def display_goal_suggestions(token: str):
             for i, suggestion in enumerate(suggestions, 1):
                 col1, col2 = st.columns([3, 1])
                 with col1:
-                    # Use markdown with consistent styling instead of st.write
-                    st.markdown(f"**{i}.** {suggestion}")
+                    # Remove any markdown and HTML formatting from suggestion text to ensure consistent styling
+                    # Remove markdown: * _ ** ` 
+                    clean_suggestion = suggestion.replace('*', '').replace('_', '').replace('**', '').replace('`', '')
+                    # Remove HTML tags like <i>, <em>, <b>, <strong>, etc.
+                    clean_suggestion = re.sub(r'<[^>]+>', '', clean_suggestion)
+                    # Remove any remaining HTML entities
+                    clean_suggestion = clean_suggestion.replace('&nbsp;', ' ').replace('&amp;', '&')
+                    # Add spaces before common patterns to fix concatenated words
+                    # Add space before numbers and after numbers (to separate "500per" into "500 per")
+                    clean_suggestion = re.sub(r'(\d+)([a-zA-Z])', r'\1 \2', clean_suggestion)
+                    clean_suggestion = re.sub(r'([a-zA-Z])(\d+)', r'\1 \2', clean_suggestion)
+                    # Add space before uppercase letters in the middle of words
+                    clean_suggestion = re.sub(r'([a-z])([A-Z])', r'\1 \2', clean_suggestion)
+                    # Clean up extra spaces and ensure single space between words
+                    clean_suggestion = ' '.join(clean_suggestion.split())
+                    # Use st.write() to match the font style used for the title above
+                    st.write(f"{i}. {clean_suggestion}")
                 with col2:
                     if st.button(f"Use This Goal", key=f"use_suggestion_{i}", help=f"Use '{suggestion}' as your goal name"):
                         # Pre-fill the create goal form with this suggestion
@@ -1547,8 +1562,8 @@ def dashboard_page():
         return
     
     goals = goals_response.get('goals', [])
-    active_goals = [g for g in goals if not g.get('completed', False)]
-    completed_goals = [g for g in goals if g.get('completed', False)]
+    active_goals = [g for g in goals if g.get('status', 'active') == 'active']
+    completed_goals = [g for g in goals if g.get('status') == 'completed']
     
     # Summary cards
     st.markdown("### 📊 Summary Overview")
@@ -1950,7 +1965,9 @@ def gamification_page():
                 st.markdown("### 🥇 Top Performers")
                 for i, user in enumerate(leaderboard):
                     rank_emoji = "🥇" if i == 0 else "🥈" if i == 1 else "🥉" if i == 2 else f"{i+1}."
-                    st.markdown(f"{rank_emoji} **{user['username']}** - {user['level']} ({user['total_points']} pts)")
+                    # Clean username to remove any markdown formatting or extra asterisks
+                    clean_username = user['username'].strip().replace('*', '').strip()
+                    st.markdown(f"{rank_emoji} **{clean_username}** - {user['level']} ({user['total_points']} pts)")
             else:
                 st.info("No leaderboard data available yet.")
         else:
@@ -2262,11 +2279,19 @@ def completed_goals_page():
         # Calculate completion date and days early/late using same logic as Days Remaining metric
         try:
             target_date = datetime.fromisoformat(goal['target_date']).date()
-            # Use last simulation date if available, otherwise use completion date
+            # Use last_simulation_date as the primary source (it's the actual simulation date)
+            # This ensures consistency with the Days Remaining metric
             if goal.get('last_simulation_date'):
                 current_date = datetime.fromisoformat(goal['last_simulation_date']).date()
+            elif goal.get('completed_at'):
+                # completed_at is now set to simulation_end_date, so use it as fallback
+                completed_at_str = goal.get('completed_at')
+                if isinstance(completed_at_str, str):
+                    current_date = datetime.fromisoformat(completed_at_str).date()
+                else:
+                    current_date = date.today()
             else:
-                current_date = datetime.fromisoformat(goal.get('completed_at', goal.get('updated_at', ''))).date()
+                current_date = date.today()
             
             # Calculate days remaining (negative means early, positive means late)
             days_remaining = (target_date - current_date).days
@@ -2274,7 +2299,8 @@ def completed_goals_page():
             # For completed goals, negative days_remaining means early completion
             days_early = -days_remaining if days_remaining < 0 else 0
             completion_date = current_date
-        except:
+        except Exception as e:
+            print(f"Error calculating days early/late: {e}")
             days_early = 0
             completion_date = 'N/A'
         
