@@ -18,10 +18,11 @@ class GoalSimulationService:
         if not goal:
             return None
         
-        # If goal doesn't have an account_id, create one
+        # If goal doesn't have an account_id, create one (truncate name to fit 100 char limit)
         if not goal.account_id:
+            goal_name_truncated = goal.name[:94]  # Leave room for "Goal: " (6 chars)
             account = Account(
-                account_name=f"Goal: {goal.name}",
+                account_name=f"Goal: {goal_name_truncated}",
                 account_type="Goal Account",
                 balance=0.0,
                 user_id=goal.user_id
@@ -47,10 +48,11 @@ class GoalSimulationService:
         if not goal:
             return []
         
-        # If goal doesn't have an account_id, create one
+        # If goal doesn't have an account_id, create one (truncate name to fit 100 char limit)
         if not goal.account_id:
+            goal_name_truncated = goal.name[:94]  # Leave room for "Goal: " (6 chars)
             account = Account(
-                account_name=f"Goal: {goal.name}",
+                account_name=f"Goal: {goal_name_truncated}",
                 account_type="Goal Account",
                 balance=0.0,
                 user_id=goal.user_id

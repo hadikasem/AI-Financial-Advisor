@@ -2,6 +2,7 @@
 
 import os
 import json
+import re
 import requests
 from datetime import datetime, date
 from typing import Dict, List, Optional, Any, Union
@@ -496,12 +497,25 @@ Current date is {datetime.now().strftime('%B %d, %Y')}.
             
             response_text = self._make_llm_request(system_prompt, user_prompt, max_tokens=1500)
             
-            # Parse response
+            # Parse response - remove any numbering and bullet points from LLM output
             suggestions = []
             for line in response_text.split('\n'):
                 line = line.strip()
                 if line and not line.startswith('#') and len(line) > 10:
-                    suggestions.append(line)
+                    # Remove numbering patterns: "1. ", "2. ", "10. ", etc.
+                    line = re.sub(r'^\d+\.\s*', '', line)
+                    # Remove "o " pattern (bullet point with space)
+                    line = re.sub(r'^o\s+', '', line)
+                    # Remove "- " pattern (dash bullet)
+                    line = re.sub(r'^-\s+', '', line)
+                    # Remove "* " pattern (asterisk bullet)
+                    line = re.sub(r'^\*\s+', '', line)
+                    # Remove leading "• " pattern
+                    line = re.sub(r'^•\s*', '', line)
+                    # Clean up any remaining leading whitespace
+                    line = line.strip()
+                    if line and len(line) > 10:
+                        suggestions.append(line)
             
             return suggestions[:10] if suggestions else []
             
@@ -758,7 +772,7 @@ Be practical and realistic with your suggestions.
         """Generate personalized financial advice for a specific goal"""
         provider = self._get_available_provider()
         if not provider:
-            return "Personalized advice is currently unavailable. Please try again later."
+            raise RuntimeError("LLM is not available")
         
         try:
             # Import models
@@ -877,7 +891,7 @@ ANALYSIS REQUIRED:
 4. Identify specific spending categories they can reduce
 5. Consider their full assessment profile (age, experience, risk tolerance, etc.)
 
-Generate 5-7 specific, actionable recommendations as a numbered list that:
+Generate 4-6 specific, actionable recommendations as a numbered list that:
 - Reference their actual spending patterns
 - Provide specific monthly savings targets
 - Suggest concrete spending reductions
@@ -887,35 +901,10 @@ Generate 5-7 specific, actionable recommendations as a numbered list that:
 """
             
             # Generate advice using LLM
-            if provider == LLMProvider.OPENAI:
-                response = self.openai_client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    max_tokens=800,
-                    temperature=0.7
-                )
-                advice = response.choices[0].message.content.strip()
-            else:
-                # Fallback for other providers - generate numbered list
-                remaining_amount = float(target_amount) - float(current_amount)
-                monthly_target = remaining_amount / max(int(days_remaining) / 30, 1) if int(days_remaining) > 0 else remaining_amount
-                
-                if progress_percentage > timeline_progress:
-                    advice = f"1. Great progress! You're ahead by {progress_percentage - timeline_progress:.1f}%. Save ${monthly_target:,.0f} monthly to reach your goal.\n2. Increase your savings rate from {int(savings_rate)}% to {min(int(savings_rate) + 5, 30)}% to maintain momentum.\n3. Review your top spending categories and reduce by 10-15%."
-                elif progress_percentage < timeline_progress:
-                    advice = f"1. You're behind by {timeline_progress - progress_percentage:.1f}%. Increase monthly savings to ${monthly_target:,.0f}.\n2. Reduce discretionary spending by 15-20% to catch up.\n3. Consider optimizing your {len(transactions_list)} recent transactions to increase savings capacity."
-                else:
-                    advice = f"1. You're on track! Maintain saving ${monthly_target:,.0f} monthly.\n2. Your {int(savings_rate)}% savings rate is working well.\n3. Continue monitoring your {len(transactions_list)} recent transactions to optimize spending."
-            
+            advice = self._make_llm_request(system_prompt, user_prompt, max_tokens=800)
             return advice
             
         except Exception as e:
             print(f"Error generating personalized advice: {str(e)}")
-            # More specific fallback advice as numbered list
-            remaining_amount = float(target_amount) - float(current_amount)
-            monthly_target = remaining_amount / max(int(days_remaining) / 30, 1) if int(days_remaining) > 0 else remaining_amount
-            return f"1. Based on {progress_percentage:.1f}% progress toward {goal_name}, save ${monthly_target:,.0f} monthly.\n2. Review your budget to increase savings rate from {int(savings_rate)}% to {min(int(savings_rate) + 5, 30)}%.\n3. Track spending patterns to identify areas for improvement."
+            raise
     

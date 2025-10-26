@@ -43,9 +43,10 @@ class GoalService:
         db.session.add(goal)
         db.session.flush()  # Get the goal ID before creating account
         
-        # Create account for this goal
+        # Create account for this goal (truncate name to fit 100 char limit)
+        goal_name_truncated = goal_data['name'][:94]  # Leave room for "Goal: " (6 chars)
         account = Account(
-            account_name=f"Goal: {goal_data['name']}",
+            account_name=f"Goal: {goal_name_truncated}",
             account_type="Goal Account",
             balance=0.0,
             user_id=user_id

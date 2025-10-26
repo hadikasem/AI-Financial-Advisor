@@ -22,8 +22,9 @@ class GoalAccountService:
         if existing_account:
             return existing_account.to_dict()
         
-        # Create new goal account
-        account_name = f"Goal: {goal.name}"
+        # Create new goal account (truncate name to fit 100 char limit)
+        goal_name_truncated = goal.name[:94]  # Leave room for "Goal: " (6 chars)
+        account_name = f"Goal: {goal_name_truncated}"
         from decimal import Decimal
         
         goal_account = GoalAccount(

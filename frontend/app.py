@@ -2599,12 +2599,70 @@ def display_individual_goal_dashboard(goal: dict, token: str):
                 
                 if advice_response and advice_response.get('advice'):
                     st.markdown("### 🎯 Smart Recommendations")
-                    # Display advice with consistent font styling
+                    # Convert plain text recommendations to HTML numbered list
+                    advice_text = advice_response['advice']
+                    
+                    # Parse numbered recommendations, handling multi-line items
+                    recommendations = []
+                    current_item = None
+                    
+                    for line in advice_text.split('\n'):
+                        line = line.strip()
+                        # Check if this line starts a new numbered item
+                        match = re.match(r'^(\d+)\.\s*(.*)$', line)
+                        if match:
+                            # Save previous item if exists and not empty
+                            if current_item is not None and current_item.strip():
+                                recommendations.append(current_item)
+                            # Start new item
+                            current_item = match.group(2)
+                        elif line and current_item is not None:
+                            # Continue the previous item (handles wrapped lines)
+                            current_item += ' ' + line
+                        elif not recommendations:
+                            # Plain text, use as-is
+                            recommendations.append(line)
+                    
+                    # Don't forget the last item
+                    if current_item is not None and current_item.strip():
+                        recommendations.append(current_item)
+                    
+                    # Filter out any empty recommendations
+                    recommendations = [rec.strip() for rec in recommendations if rec.strip()]
+                    
+                    # Convert to HTML ordered list
+                    if recommendations:
+                        html_content = '<ol>'
+                        for rec in recommendations:
+                            html_content += f'<li>{rec}</li>'
+                        html_content += '</ol>'
+                    else:
+                        html_content = advice_text
+                    
+                    # Display advice with consistent font styling and proper list formatting
                     st.markdown(f"""
-                    <div style="font-family: 'Source Sans Pro', sans-serif; font-size: 16px; line-height: 1.5; color: #333;">
-                        {advice_response['advice']}
+                    <style>
+                    .recommendations-container ol {{
+                        padding-left: 25px;
+                        margin-top: 10px;
+                    }}
+                    .recommendations-container ol li {{
+                        margin-bottom: 12px;
+                        padding-left: 8px;
+                    }}
+                    .recommendations-container {{
+                        font-family: 'Source Sans Pro', sans-serif;
+                        font-size: 16px;
+                        line-height: 1.6;
+                        color: #333;
+                    }}
+                    </style>
+                    <div class="recommendations-container">
+                        {html_content}
                     </div>
                     """, unsafe_allow_html=True)
+                elif advice_response and advice_response.get('error'):
+                    st.warning("⚠️ LLM is not available. Smart Recommendations are temporarily unavailable.")
                 else:
                     st.info("💡 Complete your risk assessment to get personalized financial advice!")
                     
