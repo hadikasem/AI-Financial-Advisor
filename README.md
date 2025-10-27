@@ -1,6 +1,6 @@
 # Risk Assessment & Goal Tracking Full-Stack Application
 
-A comprehensive full-stack web application for financial risk assessment and goal tracking, built with Flask backend, Streamlit frontend, PostgreSQL database, and integrated with Ollama LLM for personalized recommendations.
+A comprehensive full-stack web application for financial risk assessment and goal tracking, built with Flask backend, Streamlit frontend, PostgreSQL database, and integrated with OpenAI and Ollama LLM for personalized AI-powered recommendations.
 
 ## 🚀 Features
 
@@ -17,6 +17,8 @@ A comprehensive full-stack web application for financial risk assessment and goa
 - **Progress Visualization**: Interactive charts and progress bars
 - **Goal Categories**: Predefined categories (Emergency Fund, Retirement, etc.)
 - **Real-time Updates**: On-demand progress updates with time-based simulation
+- **AI Help Chat**: Context-aware financial assistance during assessments
+- **Gamification**: Streaks, points, achievements, and leaderboard system
 - **Responsive Design**: Modern, user-friendly interface
 - **Docker Support**: Complete containerization for easy deployment
 
@@ -29,11 +31,12 @@ A comprehensive full-stack web application for financial risk assessment and goa
 │   (Port 8501)   │    │   (Port 5000)   │    │   (Port 5432)   │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
-                                ▼
-                       ┌─────────────────┐
-                       │   Ollama LLM    │
-                       │   (Port 11434)  │
-                       └─────────────────┘
+                    ┌───────────┴────────────┐
+                    ▼                        ▼
+            ┌─────────────────┐    ┌─────────────────┐
+            │   OpenAI API    │    │   Ollama LLM    │
+            │   (Cloud)       │    │   (Port 11434)  │
+            └─────────────────┘    └─────────────────┘
 ```
 
 ## 📁 Project Structure
@@ -44,13 +47,18 @@ risk_agent/
 │   ├── app.py              # Main Flask application
 │   ├── models.py           # Database models
 │   ├── requirements.txt    # Python dependencies
-│   ├── Dockerfile         # Backend container
+│   ├── Dockerfile          # Backend container
+│   ├── env_example.txt     # Environment template
 │   └── services/          # Business logic services
 │       ├── assessment_service.py
 │       ├── goal_service.py
-│       ├── progress_service.py
+│       ├── goal_account_service.py
+│       ├── goal_simulation_service.py
 │       ├── llm_service.py
-│       └── notification_service.py
+│       ├── mock_progress_service.py
+│       ├── notification_service.py
+│       ├── progress_service.py
+│       └── gamification_service.py
 ├── frontend/               # Streamlit Frontend
 │   ├── app.py             # Main Streamlit application
 │   ├── requirements.txt   # Python dependencies
@@ -61,24 +69,29 @@ risk_agent/
 │   └── terraform/        # Infrastructure as Code
 │       └── main.tf       # Terraform configuration
 ├── scripts/               # Utility scripts
-│   └── migrate_data.py   # Data migration script
+│   ├── check_database.py
+│   ├── migrate_data.py
+│   └── migrate_phone_field.py
 ├── docker-compose.yml     # Docker orchestration
 ├── deploy.sh             # Deployment script
-└── README.md             # This file
+├── README.md             # This file
+├── PROJECT_SUMMARY.md    # Project overview
+├── QUICKSTART.md        # Quick start guide
+└── LLM_SERVICE_GUIDE.md # LLM integration guide
 ```
 
 ## 🛠️ Installation & Setup
 
 ### Prerequisites
 - Docker and Docker Compose
-- Ollama (for LLM functionality)
+- OpenAI API key (recommended for LLM functionality) or Ollama
 - Python 3.11+ (for local development)
 
 ### Quick Start
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/hadikasem/AI-Financial-Advisor.git
    cd risk_agent
    ```
 
@@ -133,7 +146,15 @@ SECRET_KEY=your-super-secret-key
 JWT_SECRET_KEY=jwt-secret-key
 DATABASE_URL=postgresql://user:pass@localhost:5432/risk_agent_db
 SENDGRID_API_KEY=your-sendgrid-api-key
-OLLAMA_MODEL=gpt-oss:20b
+
+# LLM Configuration (Choose OpenAI or Ollama)
+DEFAULT_LLM_PROVIDER=openai
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-3.5-turbo
+
+# Ollama Configuration (fallback)
+OLLAMA_MODEL=gemma3:4b
+OLLAMA_HOST=http://localhost:11434
 ```
 
 **Frontend (.env)**
@@ -151,6 +172,7 @@ The application uses PostgreSQL with the following main tables:
 - `transactions`: Transaction history
 - `progress_snapshots`: Progress tracking data
 - `notifications`: User notifications
+- `recommendations`: AI-generated recommendations
 
 ## 🚀 Deployment
 
@@ -189,11 +211,11 @@ docker-compose down
 ## 📊 Usage Guide
 
 ### User Flow
-1. **Registration**: Create account with email, password, and personal info
-2. **Risk Assessment**: Complete 12-question financial risk assessment
-3. **Goal Setting**: Create financial goals with categories and targets
-4. **Progress Tracking**: Update progress and view recommendations
-5. **Dashboard**: Monitor progress with charts and notifications
+1. **Registration**: Create account with email, password, username, and personal info
+2. **Risk Assessment**: Complete 12-question financial risk assessment with AI help chat
+3. **Goal Setting**: Create financial goals with categories and targets, or get AI-generated suggestions
+4. **Progress Tracking**: Update progress with smart simulation and view AI-powered recommendations
+5. **Dashboard**: Monitor progress with charts, analytics, gamification, and notifications
 
 ### API Endpoints
 
@@ -210,13 +232,27 @@ docker-compose down
 - `GET /api/goals` - Get user goals
 - `POST /api/goals` - Create new goal
 - `DELETE /api/goals/{id}` - Delete goal
+- `GET /api/goals/suggestions` - Get AI-generated goal suggestions
+- `GET /api/goals/{id}/dashboard` - Get goal dashboard data
 
 **Progress**
-- `POST /api/progress/update` - Update progress
+- `POST /api/progress/mock-update` - Update progress with simulation
 - `GET /api/progress/{goal_id}` - Get goal progress
+- `GET /api/progress/summary` - Get progress summary
+
+**LLM/AI**
+- `POST /api/llm/help` - Get AI help for questions
+- `GET /api/llm/debug` - Check LLM provider status
+- `POST /api/llm/provider` - Switch LLM provider
 
 **Recommendations**
 - `GET /api/recommendations` - Get personalized recommendations
+- `POST /api/recommendations/update` - Update recommendations
+
+**Gamification**
+- `GET /api/gamification/data` - Get user gamification data
+- `POST /api/gamification/update-streak` - Update login streak
+- `GET /api/gamification/leaderboard` - Get leaderboard
 
 ## 🔍 Smart Data Simulation
 
@@ -229,17 +265,35 @@ The application features a sophisticated time-based data simulation system:
 
 ## 🤖 LLM Integration
 
-### Ollama Integration
-- Uses `gpt-oss:20b` model for recommendations
+### OpenAI Integration (Default)
+- Uses GPT-3.5-turbo or GPT-4 models
 - Generates personalized financial advice
 - Provides goal suggestions based on risk profile
 - Explains financial terms and concepts
+- Real-time help chat during assessments
+- Fast response times
+
+### Ollama Integration (Fallback)
+- Local LLM support with multiple models
+- Supports: gemma3:4b, llama2, mistral, codellama, phi, gpt-oss:20b
+- Automatic fallback when OpenAI unavailable
+- No API costs, complete privacy
+- Provider switching via API or environment variables
+
+### AI Help Chat Feature
+During the risk assessment, users can:
+- Click "❓ Get Help" button to open AI chat
+- Ask questions about financial terms and concepts
+- Get context-aware explanations
+- Receive real-time assistance (up to 20 questions per assessment question)
+- Benefit from both OpenAI and Ollama LLM integration
 
 ### Recommendation Types
 - Investment suggestions based on risk profile
 - Spending optimization tips
 - General financial advice
 - Goal-specific recommendations
+- Personalized goal suggestions with specific amounts and timelines
 
 ## 📱 Notifications
 
@@ -252,7 +306,23 @@ The application features a sophisticated time-based data simulation system:
 ### Delivery Methods
 - **Email**: SendGrid integration
 - **In-App**: Real-time notifications
-- **Push**: Firebase Cloud Messaging (planned)
+
+## 🎮 Gamification System
+
+The application includes a comprehensive gamification system to enhance user engagement:
+
+- **Login Streaks**: Track consecutive daily logins with streak bonuses
+- **Points System**: Earn points through goal completion and milestones
+- **Achievements**: Unlock achievements based on financial progress
+- **Leaderboard**: Compete with other users on the platform
+- **Leveling**: Level up based on financial goals and achievements
+- **Streak Bonuses**: Extra rewards for maintaining login streaks
+
+### How It Works
+- Users earn points by completing assessments, creating goals, and achieving milestones
+- Daily login streaks provide bonus points
+- Achievements unlock for reaching specific milestones
+- Leaderboard ranks users by total points earned
 
 ## 🧪 Testing
 
@@ -361,6 +431,17 @@ POST /api/assessment/complete
 
 ### Common Issues
 
+**OpenAI not working**
+```bash
+# Check API key is set correctly
+echo $OPENAI_API_KEY
+
+# Test LLM endpoint
+curl -X POST http://localhost:5000/api/test/llm \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is a stock?"}'
+```
+
 **Ollama not responding**
 ```bash
 # Check if Ollama is running
@@ -368,6 +449,9 @@ curl http://localhost:11434/api/tags
 
 # Restart Ollama
 ollama serve
+
+# Pull required model
+ollama pull gemma3:4b
 ```
 
 **Database connection issues**
@@ -403,9 +487,12 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 📞 Support
 
 For support and questions:
+- **Repository**: https://github.com/hadikasem/AI-Financial-Advisor
 - Create an issue in the repository
 - Check the troubleshooting section
 - Review the API documentation
+- See `LLM_SERVICE_GUIDE.md` for LLM setup help
+- See `QUICKSTART.md` for quick start instructions
 
 ## 🎯 Roadmap
 
@@ -428,3 +515,5 @@ For support and questions:
 ---
 
 **Built with ❤️ for better financial planning and goal achievement.**
+
+**Repository**: https://github.com/hadikasem/AI-Financial-Advisor
