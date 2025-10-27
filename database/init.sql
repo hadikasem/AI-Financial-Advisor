@@ -13,7 +13,12 @@ CREATE TABLE IF NOT EXISTS users (
     phone VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP,
-    is_active BOOLEAN DEFAULT TRUE
+    is_active BOOLEAN DEFAULT TRUE,
+    last_mock_date DATE,
+    current_streak INTEGER DEFAULT 0,
+    last_activity_date DATE,
+    total_points INTEGER DEFAULT 0,
+    level VARCHAR(20) DEFAULT 'Bronze'
 );
 
 -- Create assessments table
@@ -43,6 +48,9 @@ CREATE TABLE IF NOT EXISTS goals (
     start_amount DECIMAL(15,2) DEFAULT 0.0,
     start_date DATE DEFAULT CURRENT_DATE,
     current_amount DECIMAL(15,2) DEFAULT 0.0,
+    account_id VARCHAR(36) REFERENCES accounts(id),
+    last_simulation_date DATE,
+    completed_at TIMESTAMP,
     status VARCHAR(20) DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
